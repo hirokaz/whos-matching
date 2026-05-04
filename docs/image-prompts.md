@@ -63,18 +63,28 @@ Japanese woman, late 20s to early 30s, natural makeup, soft gentle smile, casual
 
 ### ■ 目的
 
-距離感・親密さ・安心感
+距離感・親密さ・安心感（恋愛モード）
 
 ### ■ 使用シーン
 
-`scenario-game-spec.md` の Scene4〜5（デート前・デート）。**仕事終わり〜夜の時間帯を想定**。
+- **使用するシーン**: Chapter1 Scene5（初デート）専用
+  - 時間帯：平日夜、退勤後
+  - 場所：駅近くのカフェ
+  - 目的：恋愛モード、安心感、親密さの演出
+- **使用しないシーン**:
+  - 朝の通勤シーン（Scene1〜2）
+  - 社内シーン（Scene3）
+  - 後半ホラーシーン（Chapter2）
+  - 玄関以降（Scene10 以降）
+
+`evening atmosphere` のプロンプトは初デートシーン専用であり、他のシーンには流用しない。
 
 ---
 
 ### ■ プロンプト
 
 ```
-cozy cafe interior in Tokyo, soft warm lighting, wooden table, two coffee cups, hands resting on table, shallow depth of field, blurred background, evening atmosphere, calm and intimate mood, realistic photography
+cozy cafe interior near a Tokyo train station in the evening after work, soft warm lighting, wooden table, two coffee cups, hands resting on table, shallow depth of field, blurred background, calm and intimate mood, realistic photography
 ```
 
 ---
@@ -84,6 +94,14 @@ cozy cafe interior in Tokyo, soft warm lighting, wooden table, two coffee cups, 
 - 窓際席（夜景あり）
 - カップに手を添える
 - ぼかし人物
+
+---
+
+### ■ 補足ルール
+
+- 前半の恋愛演出では暖色
+- 玄関に近づくほど寒色へ移行
+- カフェ画像は「安心できるデート空間」としてのみ使用する
 
 ---
 

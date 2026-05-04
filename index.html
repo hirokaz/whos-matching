@@ -40,6 +40,12 @@
       --color-bubble-protagonist: #5a3a26; /* 主人公（右）：暖色寄り */
       --color-narration: #8d8278;          /* 地の文（中央） */
 
+      /* 選択肢ボタン: メッセージバブルと差別化するため寒色寄りニュートラル */
+      --color-choice-bg: #1a1f26;
+      --color-choice-bg-active: #232932;
+      --color-choice-border: rgba(232, 160, 100, 0.28); /* 暖色アクセントを少量で「入力UI」と示す */
+      --color-choice-text: #d6cfc7;
+
       /* レイアウト */
       --max-width: 480px;           /* スマホ縦持ち想定の最大幅 */
       --header-height: 48px;
@@ -246,22 +252,29 @@
       padding: 0;
       border-top: none;
     }
+    /* 選択直後のフェードアウト演出（DOMクリア前に短時間フェード） */
+    .app-choices.is-fading {
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 200ms ease;
+    }
     .choice-btn {
       width: 100%;
       /* min-height 44px: Apple HIG / Material のタップ目標サイズ最低基準 */
       min-height: 44px;
       padding: 12px 14px;
       text-align: left;
-      background: var(--color-surface);
-      color: var(--color-text);
+      /* メッセージバブル（暖色）と区別する寒色寄りニュートラル + 暖色アクセント縁 */
+      background: var(--color-choice-bg);
+      color: var(--color-choice-text);
       border-radius: var(--radius-button);
-      border: 1px solid rgba(255,255,255,0.05);
+      border: 1px solid var(--color-choice-border);
       font-size: 14.5px;
       transition: background-color 160ms ease, border-color 160ms ease,
                   transform 80ms ease, opacity 200ms ease;
     }
     .choice-btn:active {
-      background: var(--color-surface-2);
+      background: var(--color-choice-bg-active);
       transform: scale(0.99);
     }
     .choice-btn--accent {
@@ -1278,7 +1291,7 @@
       }
 
       // 選択肢を確定してフラグ・内部変数を反映、次シーンへ。
-      function choose(choiceIndex) {
+      function choose(choiceIndex, sayText) {
         if (!current || current.type !== 'choice') {
           console.warn('[SceneEngine.choose] 現在のシーンは選択肢を持たない');
           return;
@@ -1302,10 +1315,13 @@
           }
         }
 
-        // 選択した内容もログに（後でLOG画面で振り返れるように）
+        // 選択した内容をログに記録。
+        // sayText（UI側で解決した自然な台詞）が渡されればそれを優先、
+        // 無ければ choice.say、それも無ければ choice.label にフォールバック。
+        const logText = sayText || choice.say || choice.label;
         GameState.appendLog({
           speaker: 'protagonist',
-          text: '> ' + choice.label,
+          text: logText,
           sceneId: current.id,
           choice: true,
         });
@@ -1447,9 +1463,9 @@
           { speaker: 'narration',   text: 'プロフィールは穏やかで、感じがいい。', effect: 1, tone: 'warm' },
         ],
         choices: [
-          { label: 'スワイプして「いいね」を送る', flags: { F_intervene: +1 }, next: 'ch1-scene2' },
-          { label: '少し見てから閉じる',           next: 'ch1-scene2' },
-          { label: 'そっとアプリを閉じる',         next: 'ch1-scene2' },
+          { label: 'スワイプして「いいね」を送る', say: '（ま、いっか。「いいね」しちゃおう。）', flags: { F_intervene: +1 }, next: 'ch1-scene2' },
+          { label: '少し見てから閉じる',           say: '（ちょっとだけ……眺めるだけ。）',       next: 'ch1-scene2' },
+          { label: 'そっとアプリを閉じる',         say: '（やめとこ。仕事行かなきゃ。）',         next: 'ch1-scene2' },
         ],
       },
 
@@ -1465,9 +1481,9 @@
           { speaker: 'partner',   text: 'びっくりしました。すみません、急に。', effect: 1, tone: 'warm' },
         ],
         choices: [
-          { label: '丁寧に返信する',     flags: { F_empathy: +1 }, next: 'ch1-scene3' },
-          { label: '軽い感じで返す',     next: 'ch1-scene3' },
-          { label: 'しばらく返事しない', flags: { F_empathy: -1 }, next: 'ch1-scene3' },
+          { label: '丁寧に返信する',     say: 'はじめまして。同じ会社、ですよね。びっくりしました、私も。', flags: { F_empathy: +1 }, next: 'ch1-scene3' },
+          { label: '軽い感じで返す',     say: 'えー、奇遇すぎ（笑） まさかこんなことあるんですね。',         next: 'ch1-scene3' },
+          { label: 'しばらく返事しない', say: '（うーん……ちょっと、考えよ。あとで返そ。）',                 flags: { F_empathy: -1 }, next: 'ch1-scene3' },
         ],
       },
 
@@ -1482,9 +1498,9 @@
           { speaker: 'partner',   text: 'ちょっと急いでて、すみません。', effect: 1 },
         ],
         choices: [
-          { label: '中身を一通り確認してから送る', flags: { F_workCare: +1 }, next: 'ch1-scene4' },
-          { label: 'そのまま急いで送る',           next: 'ch1-scene4' },
-          { label: '一部だけ確認して送る',         next: 'ch1-scene4' },
+          { label: '中身を一通り確認してから送る', say: '少しだけ確認させてください。すぐ送りますね。', flags: { F_workCare: +1 }, next: 'ch1-scene4' },
+          { label: 'そのまま急いで送る',           say: 'お疲れさまです。今、送ります！',               next: 'ch1-scene4' },
+          { label: '一部だけ確認して送る',         say: 'ざっと見て、これで送っちゃいますね。',         next: 'ch1-scene4' },
         ],
       },
 
@@ -1499,9 +1515,9 @@
           { speaker: 'partner',   text: '最近ちょっと、仕事が立て込んでて。', effect: 1 },
         ],
         choices: [
-          { label: '何があったか聞いてみる',   flags: { F_empathy: +1 }, next: 'ch1-scene5' },
-          { label: '「お疲れさま」と軽く流す', next: 'ch1-scene5' },
-          { label: 'お店の話に切り替える',     next: 'ch1-scene5' },
+          { label: '何があったか聞いてみる',   say: '迷ってた、って？何かあったんですか？',         flags: { F_empathy: +1 }, next: 'ch1-scene5' },
+          { label: '「お疲れさま」と軽く流す', say: 'お疲れさまです。今日はゆっくりしましょう。',   next: 'ch1-scene5' },
+          { label: 'お店の話に切り替える',     say: 'あ、そうだ、お店、私が選んじゃったんですけど大丈夫でした？', next: 'ch1-scene5' },
         ],
       },
 
@@ -1516,9 +1532,9 @@
           { speaker: 'partner',   text: '同僚に「行ってこい」って、押し出されて。', effect: 1, tone: 'warm' },
         ],
         choices: [
-          { label: '「大変ですね」と共感する',         flags: { F_empathy:   +1 }, next: 'ch1-scene6' },
-          { label: '具体的にどこを直すのか聞いてみる', flags: { F_intervene: +1 }, next: 'ch1-scene6' },
-          { label: '別の話題に変える',                 next: 'ch1-scene6' },
+          { label: '「大変ですね」と共感する',         say: 'それは大変ですね……。本当にお疲れさまです。',         flags: { F_empathy:   +1 }, next: 'ch1-scene6' },
+          { label: '具体的にどこを直すのか聞いてみる', say: 'リニューアルって、どのあたりを触るんですか？',       flags: { F_intervene: +1 }, next: 'ch1-scene6' },
+          { label: '別の話題に変える',                 say: '今日はもう、仕事のこと忘れちゃいましょうよ。',         next: 'ch1-scene6' },
         ],
       },
 
@@ -1534,9 +1550,9 @@
           { speaker: 'protagonist', text: '（言うべき？黙ってる？）', effect: 1 },
         ],
         choices: [
-          { label: 'それとなくヒントを出す',     flags: { F_intervene: +1 }, next: 'ch1-scene7' },
-          { label: '気づかれない範囲で黙っておく', next: 'ch1-scene7' },
-          { label: '「大丈夫だと思いますよ」と誤魔化す', flags: { F_honesty: -1 }, next: 'ch1-scene7' },
+          { label: 'それとなくヒントを出す',             say: 'あの、フォーマット……確認した方がいいかもしれないです。',         flags: { F_intervene: +1 }, next: 'ch1-scene7' },
+          { label: '気づかれない範囲で黙っておく',       say: '（……いや、勘違いかも。言わない方がいいよね。）',                 next: 'ch1-scene7' },
+          { label: '「大丈夫だと思いますよ」と誤魔化す', say: 'たぶん大丈夫だと思いますよ。心配しすぎじゃないですか。',           flags: { F_honesty: -1 }, next: 'ch1-scene7' },
         ],
       },
 
@@ -1565,9 +1581,9 @@
           { speaker: 'partner', text: '……非常識なお願いだって、わかってます。', effect: 2 },
         ],
         choices: [
-          { label: '今から行きましょう',             next: 'ch1-scene9' },
-          { label: '明日の朝早くじゃダメですか？',   flags: { F_intervene: -1 }, next: 'ch1-scene9' },
-          { label: 'やっぱり、自分には関係ない話かも', flags: { F_empathy: -1 }, next: 'ch1-scene9' },
+          { label: '今から行きましょう',                 say: '……わかりました。今から行きましょう。早い方がいいですよね。',     next: 'ch1-scene9' },
+          { label: '明日の朝早くじゃダメですか？',       say: '明日の朝早くじゃ、ダメですか？さすがに今夜は……。',             flags: { F_intervene: -1 }, next: 'ch1-scene9' },
+          { label: 'やっぱり、自分には関係ない話かも',   say: 'うーん、ごめんなさい。私が口出すような話じゃないかも。',         flags: { F_empathy: -1 }, next: 'ch1-scene9' },
         ],
       },
 
@@ -1601,9 +1617,9 @@
         ],
         // 表示上は3択あるが、いずれを選んでも 'ch1-scene10-blackout' に進む（仕様準拠）
         choices: [
-          { label: '帰ります、と言って引き返す',   next: 'ch1-scene10-blackout' },
-          { label: '中に入る',                     next: 'ch1-scene10-blackout' },
-          { label: '「忘れ物した」と言ってごまかす', next: 'ch1-scene10-blackout' },
+          { label: '帰ります、と言って引き返す',     say: 'あの……やっぱり、今日は帰ります。ごめんなさい。',           next: 'ch1-scene10-blackout' },
+          { label: '中に入る',                       say: '（……ここまで来たんだから。）お邪魔します。',               next: 'ch1-scene10-blackout' },
+          { label: '「忘れ物した」と言ってごまかす', say: 'あ、すみません。忘れ物した気がして……ちょっと外に。',       next: 'ch1-scene10-blackout' },
         ],
       },
 
@@ -1646,9 +1662,9 @@
           { speaker: 'protagonist', text: '（手が、動かない。）', effect: 3 },
         ],
         choices: [
-          { label: '壁を見る',           next: 'ch2-scene12' },
-          { label: '床を見る',           next: 'ch2-scene12' },
-          { label: '自分の体を確認する', next: 'ch2-scene12' },
+          { label: '壁を見る',           say: '（壁……あれは、何？）',                       next: 'ch2-scene12' },
+          { label: '床を見る',           say: '（床、フローリング。知らない部屋だ。）',     next: 'ch2-scene12' },
+          { label: '自分の体を確認する', say: '（手……縛られてる。足も。動けない。）',       next: 'ch2-scene12' },
         ],
       },
 
@@ -1665,9 +1681,9 @@
           { speaker: 'narration',   text: '机の上には、起動したままのPC。', effect: 3 },
         ],
         choices: [
-          { label: '写真を凝視する',     next: 'ch2-scene13' },
-          { label: 'PCの画面を覗く',     next: 'ch2-scene13' },
-          { label: 'ドアまでの距離を測る', next: 'ch2-scene13' },
+          { label: '写真を凝視する',       say: '（嘘でしょ……いつから、撮られてたの。）',           next: 'ch2-scene13' },
+          { label: 'PCの画面を覗く',       say: '（あの画面……何が映ってるの。）',                   next: 'ch2-scene13' },
+          { label: 'ドアまでの距離を測る', say: '（ドアまで、何歩。今、走れたら……。）',             next: 'ch2-scene13' },
         ],
       },
 
@@ -1681,9 +1697,9 @@
           { speaker: 'partner',   text: '大丈夫。ちゃんと見てたから。', effect: 3 },
         ],
         choices: [
-          { label: '黙ったまま、相手を見る',         next: 'ch2-scene14' },
-          { label: '名前を呼ぶ',                     next: 'ch2-scene14' },
-          { label: '「これ、どういうことですか」と問う', next: 'ch2-scene14' },
+          { label: '黙ったまま、相手を見る',             say: '（……何も言わない。今は、何も。）',                       next: 'ch2-scene14' },
+          { label: '名前を呼ぶ',                         say: '……どうして、こんなこと、するんですか。',                   next: 'ch2-scene14' },
+          { label: '「これ、どういうことですか」と問う', say: 'これ、どういうことですか。冗談、ですよね。',               next: 'ch2-scene14' },
         ],
       },
 
@@ -1697,9 +1713,9 @@
           { speaker: 'partner', text: '昼間のデータ。あれ、本当はおかしいって、気づいてたよね？', effect: 3 },
         ],
         choices: [
-          { label: '「知らない」',     vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
-          { label: '「覚えてない」',   vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
-          { label: '「誤解です」',     vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
+          { label: '「知らない」',     say: '知らない。何の話か、わからない。',           vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
+          { label: '「覚えてない」',   say: '覚えてない。そんなこと、私……。',             vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
+          { label: '「誤解です」',     say: '誤解です。何か、勘違いしてませんか。',       vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
         ],
       },
 
@@ -1714,9 +1730,9 @@
           { speaker: 'partner', text: '君が「対応済みです」って書いた、あれ。', effect: 3 },
         ],
         choices: [
-          { label: '「あの時は仕方なかった」',         vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
-          { label: '「自分だけのせいじゃない」',       vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
-          { label: '「あの時は時間がなかったんです」', vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
+          { label: '「あの時は仕方なかった」',         say: 'あの時は……仕方なかったんです。本当に。',                     vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
+          { label: '「自分だけのせいじゃない」',       say: '私だけのせいじゃないですよ。みんなそうしてた。',             vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
+          { label: '「あの時は時間がなかったんです」', say: 'あの時、本当に時間がなかったんです。やるしかなかった。',     vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
         ],
       },
 
@@ -1730,10 +1746,10 @@
           { speaker: 'partner', text: 'ねえ、本当はどう思ってる？', effect: 3 },
         ],
         choices: [
-          { label: '「後悔しています」',         vars: { Trust: +1, Risk: -1 }, next: 'ch2-scene17' },
-          { label: '相手の話に静かに頷く',       vars: { Trust: +1, Risk: -1 }, next: 'ch2-scene17' },
-          { label: '「あなたは、何が目的なんですか」と逆に問う', vars: { Trust: +1, Interest: +1 }, next: 'ch2-scene17' },
-          { label: '椅子ごと暴れる',             vars: { Trust: -1, Risk: +2 }, next: 'ch2-scene17' },
+          { label: '「後悔しています」',                         say: '……後悔しています。本当に、ずっと。',                                       vars: { Trust: +1, Risk: -1 }, next: 'ch2-scene17' },
+          { label: '相手の話に静かに頷く',                       say: '（……うん。何も言えない。ただ、頷くしかない。）',                           vars: { Trust: +1, Risk: -1 }, next: 'ch2-scene17' },
+          { label: '「あなたは、何が目的なんですか」と逆に問う', say: 'あなたは、何が目的なんですか。こんなことして。',                           vars: { Trust: +1, Interest: +1 }, next: 'ch2-scene17' },
+          { label: '椅子ごと暴れる',                             say: 'やめて！離して！',                                                         vars: { Trust: -1, Risk: +2 }, next: 'ch2-scene17' },
         ],
       },
 
@@ -1814,8 +1830,8 @@
           { speaker: 'narration', text: 'ただ、今夜は、生きて帰れるらしい。', effect: 3 },
         ],
         choices: [
-          { label: 'もう一度プレイする', next: '__restart__' },
-          { label: 'タイトルへ戻る',     next: '__title__' },
+          { label: 'もう一度プレイする', say: '（もう一度、最初から。）', next: '__restart__' },
+          { label: 'タイトルへ戻る',     say: '（……タイトルへ戻る。）', next: '__title__' },
         ],
       },
 
@@ -1833,8 +1849,8 @@
           { speaker: 'protagonist', text: '（今のうちに。）', effect: 3 },
         ],
         choices: [
-          { label: 'もう一度プレイする', next: '__restart__' },
-          { label: 'タイトルへ戻る',     next: '__title__' },
+          { label: 'もう一度プレイする', say: '（もう一度、最初から。）', next: '__restart__' },
+          { label: 'タイトルへ戻る',     say: '（……タイトルへ戻る。）', next: '__title__' },
         ],
       },
 
@@ -1851,8 +1867,8 @@
           { speaker: 'narration', text: '——部屋の明かりが、落ちる。', effect: 3 },
         ],
         choices: [
-          { label: 'もう一度プレイする', next: '__restart__' },
-          { label: 'タイトルへ戻る',     next: '__title__' },
+          { label: 'もう一度プレイする', say: '（もう一度、最初から。）', next: '__restart__' },
+          { label: 'タイトルへ戻る',     say: '（……タイトルへ戻る。）', next: '__title__' },
         ],
       },
 
@@ -1871,8 +1887,8 @@
           { speaker: 'narration',   text: 'もう、出る理由もない。', effect: 3 },
         ],
         choices: [
-          { label: 'もう一度プレイする', next: '__restart__' },
-          { label: 'タイトルへ戻る',     next: '__title__' },
+          { label: 'もう一度プレイする', say: '（もう一度、最初から。）', next: '__restart__' },
+          { label: 'タイトルへ戻る',     say: '（……タイトルへ戻る。）', next: '__title__' },
         ],
       },
 
@@ -2355,23 +2371,26 @@
       function handleChoiceTap(idx, selectedBtn, allButtons, choice) {
         if (!ui.pendingChoices) return;
         ui.pendingChoices = false;
-        // 強調 + 他をフェード（押した感を残してから次に進める）
-        allButtons.forEach((b) => {
-          b.disabled = true;
-          if (b === selectedBtn) b.classList.add('is-selected');
-          else b.classList.add('is-dimmed');
-        });
+
+        // 選択直後にボタン群を非操作化 + フェードアウト
+        // （選んだ感は短く残しつつ、すぐに DOM から消して画面を整理する）
+        allButtons.forEach((b) => { b.disabled = true; });
+        $choices.classList.add('is-fading');
+
+        // チャットに表示する自然な台詞: choice.say があればそれ、無ければ label にフォールバック
+        const sayText = (choice && choice.say) ? choice.say : choice.label;
 
         // エンディング画面の特殊サニチネル: __restart__ / __title__
         // 通常シーンと同じ choice UI で扱うため、ここで横取りする。
         if (choice && (choice.next === '__restart__' || choice.next === '__title__')) {
-          appendChoiceEcho(choice.label);
+          appendChoiceEcho(sayText);
           setTimeout(() => {
+            clearChoices();
+            $choices.classList.remove('is-fading');
             if (choice.next === '__restart__') {
               // セーブを破棄して最初から
               GameState.reset();
               $chat.innerHTML = '';
-              clearChoices();
               ui.waiting = false;
               ui.pendingChoices = false;
               ui.pendingForced = false;
@@ -2387,24 +2406,28 @@
           return;
         }
 
-        // 主人公の発話としてチャットに追加（"> ラベル"）してから進行
+        // 主人公の発話としてチャットに追加（自然な say テキスト）してから進行
         // → SceneEngine.choose() 内で GameState.appendLog も走るので、
-        //   ここでは「画面表示だけ」を担当する。
-        appendChoiceEcho(choice.label);
-        // 少し余韻を残してから choose（演出として 350ms ほど）
+        //   ここでは「画面表示だけ」を担当する。choose() に sayText を渡して
+        //   ログにも自然な会話文を残す。
+        appendChoiceEcho(sayText);
+        // 少し余韻を残してから choose（演出として 350ms ほど）。
+        // この間に選択肢エリアは fade-out → クリアされる。
         setTimeout(() => {
-          SceneEngine.choose(idx);
+          clearChoices();
+          $choices.classList.remove('is-fading');
+          SceneEngine.choose(idx, sayText);
         }, 350);
       }
 
-      function appendChoiceEcho(label) {
+      function appendChoiceEcho(text) {
         // 選んだ選択肢を主人公の吹き出しとして即時表示（タイピングなし）。
         // 次シーンが始まる前にプレイヤーに「自分の発言」として実感させるため。
         const row = document.createElement('div');
         row.className = 'msg msg--protagonist';
         const bubble = document.createElement('div');
         bubble.className = 'msg__bubble';
-        bubble.textContent = label;
+        bubble.textContent = text;
         row.appendChild(bubble);
         $chat.appendChild(row);
         scrollChatToBottom();

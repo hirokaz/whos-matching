@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  プロフィール（男性） — 横顔シルエット
+  仕様: image-prompts.md / character-spec.md
+  「フル顔NG」を厳守: 横向き・シルエットのみ。
+  暖色寄りトーン（前半・恋愛モード）。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="男性のプロフィール（横顔シルエット）">
+  <defs>
+    <linearGradient id="bgM" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#3a2618"/>
+      <stop offset="1" stop-color="#1d1310"/>
+    </linearGradient>
+    <radialGradient id="lightM" cx="0.78" cy="0.25" r="0.6">
+      <stop offset="0" stop-color="#e8a064" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#e8a064" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#bgM)"/>
+  <rect width="320" height="200" fill="url(#lightM)"/>
+  <!-- 横向き肩〜頭のシルエット（フル顔NGのため真横向き） -->
+  <g transform="translate(80,30)">
+    <!-- 肩・首 -->
+    <path d="M 0 170 L 0 130 Q 30 110 60 105 L 70 90 Q 75 80 90 80 L 120 80 Q 138 80 138 95 L 138 120 Q 170 130 200 145 L 200 170 Z" fill="#0d0907" opacity="0.95"/>
+    <!-- 後頭部〜うなじ -->
+    <path d="M 90 80 Q 78 70 78 50 Q 78 22 110 18 Q 138 18 142 50 L 142 80 Q 142 86 138 88 L 90 88 Z" fill="#0d0907"/>
+    <!-- 髪のハイライト（暖色） -->
+    <path d="M 92 24 Q 110 14 134 22 Q 142 30 142 46 Q 130 30 112 28 Q 96 30 92 42 Z" fill="#5a3a26" opacity="0.7"/>
+    <!-- 襟元 -->
+    <path d="M 60 110 L 90 92 L 138 92 L 152 112" fill="none" stroke="#2a1c14" stroke-width="2" opacity="0.6"/>
+  </g>
+</svg>

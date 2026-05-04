@@ -845,13 +845,29 @@
 
         // GameState を更新 + 自動保存（仕様: シーン遷移時に自動保存）
         GameState.set('sceneId', sceneId);
+
+        // onEnter フック: シーン突入直前に状態を操作したい場合に使う。
+        // 例: Chapter1→Chapter2 のフラグ→内部変数変換、エンディング判定、
+        //     条件分岐ハブでの内部変数の事前計算など。
+        // 第1引数: GameState、第2引数: SceneEngine 内部 API（forceTransition のみ公開）。
+        if (typeof scene.onEnter === 'function') {
+          try {
+            scene.onEnter(GameState, { forceTransition });
+          } catch (e) {
+            console.error('[SceneEngine.onEnter]', sceneId, e);
+          }
+        }
+
+        // 自動保存（onEnter 後の状態を保存）
         GameState.save();
 
         emitter.emit('sceneChange', { sceneId, scene });
 
         // scene-transition は即座に次へ（メッセージを持たないハブ）
+        // next は文字列または関数（GameState を受け取り次シーンIDを返す）。
         if (scene.type === 'scene-transition') {
-          if (scene.next) _enterScene(scene.next);
+          const nextId = _resolveNext(scene);
+          if (nextId) _enterScene(nextId);
           else emitter.emit('end', { reason: 'transition-no-next', sceneId });
           return;
         }
@@ -863,6 +879,16 @@
           // メッセージが無い場合は即座に末尾アクションへ
           _emitEndOfMessages();
         }
+      }
+
+      // next が関数なら GameState を渡して評価し、文字列ならそのまま返す。
+      function _resolveNext(scene) {
+        if (!scene) return null;
+        if (typeof scene.next === 'function') {
+          try { return scene.next(GameState); }
+          catch (e) { console.error('[SceneEngine._resolveNext]', e); return null; }
+        }
+        return scene.next || null;
       }
 
       function _emitMessage() {
@@ -891,7 +917,7 @@
         } else {
           // 'forced' / 'message' / それ以外: 「進む」を提示
           emitter.emit('forced', {
-            next: current.next || null,
+            next: _resolveNext(current),
             sceneId: current.id,
           });
         }
@@ -945,9 +971,12 @@
           choice: true,
         });
 
-        // 遷移
-        if (choice.next) {
-          _enterScene(choice.next);
+        // 遷移（choice.next も関数を許可）
+        const nextId = (typeof choice.next === 'function')
+          ? choice.next(GameState)
+          : choice.next;
+        if (nextId) {
+          _enterScene(nextId);
         } else {
           emitter.emit('end', { reason: 'choice-no-next', sceneId: current.id });
         }
@@ -961,7 +990,8 @@
       // 「forced」末尾アクションから次シーンへ進める
       function proceedForced() {
         if (!current) return;
-        if (current.next) _enterScene(current.next);
+        const nextId = _resolveNext(current);
+        if (nextId) _enterScene(nextId);
         else emitter.emit('end', { reason: 'forced-no-next', sceneId: current.id });
       }
 
@@ -981,47 +1011,530 @@
     NS.SceneEngine = SceneEngine;
 
     /* ===============================================================
-     * ダミーシーンデータ（Phase 1 動作確認用）
-     * Scene1 → 選択肢 → Scene2（forced）→ Scene3（終了表示）の流れ。
-     * 本番シナリオは Phase 2 以降で差し替える。
+     * Chapter1 → Chapter2 変換ロジック
+     * ---------------------------------------------------------------
+     * 仕様: docs/scenario-game-spec.md「Chapter2 開始時の初期変換」
+     *
+     *   Trust    = 1 + F_empathy + max(F_honesty, 0)
+     *   Interest = 1 + F_intervene + (F_workCare <= 1 ? 1 : 0)
+     *   Risk     = 1 + max(-F_honesty, 0) + (F_empathy === 0 ? 1 : 0)
+     *
+     * GameState.set は 0..5 にクランプする。
+     * デバッグ用に変換結果をコンソールに出力する。
      * =============================================================== */
-    const DEMO_SCENES = {
-      'demo-1': {
-        id: 'demo-1',
+    function transitionToChapter2() {
+      const F_workCare  = GameState.get('F_workCare');
+      const F_empathy   = GameState.get('F_empathy');
+      const F_honesty   = GameState.get('F_honesty');
+      const F_intervene = GameState.get('F_intervene');
+
+      const trust    = 1 + F_empathy + Math.max(F_honesty, 0);
+      const interest = 1 + F_intervene + (F_workCare <= 1 ? 1 : 0);
+      const risk     = 1 + Math.max(-F_honesty, 0) + (F_empathy === 0 ? 1 : 0);
+
+      // GameState.set 内でクランプされる
+      GameState.set('Trust',    trust);
+      GameState.set('Interest', interest);
+      GameState.set('Risk',     risk);
+
+      // デバッグ出力（仕様確認用）
+      console.log('[transitionToChapter2] flags:', {
+        F_workCare, F_empathy, F_honesty, F_intervene,
+      });
+      console.log('[transitionToChapter2] vars (raw):', {
+        Trust: trust, Interest: interest, Risk: risk,
+      });
+      console.log('[transitionToChapter2] vars (clamped):', {
+        Trust:    GameState.get('Trust'),
+        Interest: GameState.get('Interest'),
+        Risk:     GameState.get('Risk'),
+      });
+    }
+    NS.transitionToChapter2 = transitionToChapter2;
+
+    /* ===============================================================
+     * エンディング判定
+     * ---------------------------------------------------------------
+     * 仕様: docs/scenario-game-spec.md「エンディング条件」
+     * =============================================================== */
+    function determineEnding() {
+      const Trust    = GameState.get('Trust');
+      const Interest = GameState.get('Interest');
+      const Risk     = GameState.get('Risk');
+      let ending;
+      if (Trust >= 4 && Risk <= 2) {
+        ending = 'GOOD';
+      } else if (Risk <= 3 && Interest >= 3) {
+        ending = 'ESCAPE';
+      } else if (Interest >= 5 && Trust <= 2) {
+        ending = 'LOST';
+      } else {
+        ending = 'BAD';
+      }
+      console.log('[determineEnding] vars:', { Trust, Interest, Risk }, '=>', ending);
+      return ending;
+    }
+    NS.determineEnding = determineEnding;
+
+    /* ===============================================================
+     * 本番シナリオデータ（Chapter1 / Chapter2 / Endings）
+     * ---------------------------------------------------------------
+     * 仕様: docs/scenario-game-spec.md / character-spec.md / persona-spec.md
+     *
+     * effect レベル:
+     *   1: 前半（Ch1 Scene1〜7） ─ 暖色テンポ
+     *   2: 中盤（Ch1 Scene8〜10）─ 違和感
+     *   3: 後半（Ch2 全シーン）   ─ 恐怖
+     *
+     * 選択肢のフラグ加減算は ±1 を基本（仕様準拠）。
+     * Chapter1 末（Scene10）で transitionToChapter2() を呼んで Chapter2 へ。
+     * Chapter2 末（Scene18）で determineEnding() を呼んでエンディングへ。
+     * =============================================================== */
+    const ALL_SCENES = {
+
+      /* ============= Chapter1 ============= */
+
+      // Scene1 通勤電車：マッチングアプリで同じ会社の人を発見
+      'ch1-scene1': {
+        id: 'ch1-scene1',
         type: 'choice',
         messages: [
-          { speaker: 'narration', text: '通勤電車。スマホを開く。', tone: 'warm', effect: 1 },
-          { speaker: 'partner',   text: 'はじめまして。プロフィール見ました。', tone: 'warm' },
-          { speaker: 'partner',   text: '同じ会社、ですよね…？', tone: 'warm' },
+          { speaker: 'narration',   text: '朝の満員電車。今日も少し疲れている。', effect: 1, tone: 'warm' },
+          { speaker: 'narration',   text: '何気なくマッチングアプリを開く。', effect: 1, tone: 'warm' },
+          { speaker: 'protagonist', text: '（…あれ、この人。）', effect: 1 },
+          { speaker: 'protagonist', text: '（同じ会社の人だ。別部署、だけど。）', effect: 1 },
+          { speaker: 'narration',   text: 'プロフィールは穏やかで、感じがいい。', effect: 1, tone: 'warm' },
         ],
         choices: [
-          { label: '丁寧に返信する', flags: { F_empathy:   +1 }, next: 'demo-2' },
-          { label: '軽く返信する',   flags: { F_intervene: +1 }, next: 'demo-2' },
-          { label: '少しごまかす',   flags: { F_honesty:   -1 }, next: 'demo-2' },
+          { label: 'スワイプして「いいね」を送る', flags: { F_intervene: +1 }, next: 'ch1-scene2' },
+          { label: '少し見てから閉じる',           next: 'ch1-scene2' },
+          { label: 'そっとアプリを閉じる',         next: 'ch1-scene2' },
         ],
       },
 
-      'demo-2': {
-        id: 'demo-2',
-        type: 'forced',
+      // Scene2 マッチ成立：会話開始
+      'ch1-scene2': {
+        id: 'ch1-scene2',
+        type: 'choice',
         messages: [
-          { speaker: 'protagonist', text: '（…返信を送った。）' },
-          { speaker: 'partner',     text: 'ありがとうございます。今度よかったら。' },
+          { speaker: 'narration', text: '昼休み。通知が鳴る。', effect: 1 },
+          { speaker: 'narration', text: '——マッチしました。', effect: 1, tone: 'warm' },
+          { speaker: 'partner',   text: 'はじめまして。プロフィール、拝見しました。', effect: 1, tone: 'warm' },
+          { speaker: 'partner',   text: 'もしかして、同じ会社…ですよね？', effect: 1, tone: 'warm' },
+          { speaker: 'partner',   text: 'びっくりしました。すみません、急に。', effect: 1, tone: 'warm' },
         ],
-        next: 'demo-3',
+        choices: [
+          { label: '丁寧に返信する',     flags: { F_empathy: +1 }, next: 'ch1-scene3' },
+          { label: '軽い感じで返す',     next: 'ch1-scene3' },
+          { label: 'しばらく返事しない', flags: { F_empathy: -1 }, next: 'ch1-scene3' },
+        ],
       },
 
-      'demo-3': {
-        id: 'demo-3',
+      // Scene3 社内伏線：データ共有依頼
+      'ch1-scene3': {
+        id: 'ch1-scene3',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: '午後。社内チャットの通知。', effect: 1 },
+          { speaker: 'partner',   text: 'お疲れさまです。', effect: 1 },
+          { speaker: 'partner',   text: '最新の顧客データ、共有してもらえますか？', effect: 1 },
+          { speaker: 'partner',   text: 'ちょっと急いでて、すみません。', effect: 1 },
+        ],
+        choices: [
+          { label: '中身を一通り確認してから送る', flags: { F_workCare: +1 }, next: 'ch1-scene4' },
+          { label: 'そのまま急いで送る',           next: 'ch1-scene4' },
+          { label: '一部だけ確認して送る',         next: 'ch1-scene4' },
+        ],
+      },
+
+      // Scene4 デート前：相手「今日迷ってた」
+      'ch1-scene4': {
+        id: 'ch1-scene4',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: '週末。待ち合わせの30分前。', effect: 1, tone: 'warm' },
+          { speaker: 'partner',   text: '今、駅に着きました。', effect: 1 },
+          { speaker: 'partner',   text: '正直、今日は来るか迷ってたんですよね。', effect: 1 },
+          { speaker: 'partner',   text: '最近ちょっと、仕事が立て込んでて。', effect: 1 },
+        ],
+        choices: [
+          { label: '何があったか聞いてみる',   flags: { F_empathy: +1 }, next: 'ch1-scene5' },
+          { label: '「お疲れさま」と軽く流す', next: 'ch1-scene5' },
+          { label: 'お店の話に切り替える',     next: 'ch1-scene5' },
+        ],
+      },
+
+      // Scene5 デート：システムリニューアルの話
+      'ch1-scene5': {
+        id: 'ch1-scene5',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: 'カフェの窓際。コーヒーの湯気。', effect: 1, tone: 'warm' },
+          { speaker: 'partner',   text: '実は、明日システムのリニューアルなんです。', effect: 1 },
+          { speaker: 'partner',   text: '本当は今夜も会社で詰めるはずで。', effect: 1 },
+          { speaker: 'partner',   text: '同僚に「行ってこい」って、押し出されて。', effect: 1, tone: 'warm' },
+        ],
+        choices: [
+          { label: '「大変ですね」と共感する',         flags: { F_empathy:   +1 }, next: 'ch1-scene6' },
+          { label: '具体的にどこを直すのか聞いてみる', flags: { F_intervene: +1 }, next: 'ch1-scene6' },
+          { label: '別の話題に変える',                 next: 'ch1-scene6' },
+        ],
+      },
+
+      // Scene6 気づき：データの話から原因がわかってしまう
+      'ch1-scene6': {
+        id: 'ch1-scene6',
+        type: 'choice',
+        messages: [
+          { speaker: 'partner',     text: '昼間に共有してもらったデータ、', effect: 1 },
+          { speaker: 'partner',     text: '実はあれ、そのまま新システムに流れるんです。', effect: 1 },
+          { speaker: 'protagonist', text: '（……あ。）', effect: 1 },
+          { speaker: 'protagonist', text: '（あのフォーマット、新しい方式と合わないかも。）', effect: 1 },
+          { speaker: 'protagonist', text: '（言うべき？黙ってる？）', effect: 1 },
+        ],
+        choices: [
+          { label: 'それとなくヒントを出す',     flags: { F_intervene: +1 }, next: 'ch1-scene7' },
+          { label: '気づかれない範囲で黙っておく', next: 'ch1-scene7' },
+          { label: '「大丈夫だと思いますよ」と誤魔化す', flags: { F_honesty: -1 }, next: 'ch1-scene7' },
+        ],
+      },
+
+      // Scene7 責任成立：「今日中に直さないとまずい」（強制進行）
+      'ch1-scene7': {
+        id: 'ch1-scene7',
         type: 'forced',
         messages: [
-          { speaker: 'narration', text: '——Phase 1 動作確認はここまで。', effect: 2 },
+          { speaker: 'partner',     text: '……ちょっと、確認させてください。', effect: 1 },
+          { speaker: 'partner',     text: 'え。それ、本当ですか。', effect: 1 },
+          { speaker: 'partner',     text: 'やばい。今日中に直さないと、明日の朝止まる。', effect: 1 },
+          { speaker: 'protagonist', text: '（……自分なら、たぶん原因わかる。）', effect: 1 },
+          { speaker: 'protagonist', text: '今なら、直せると思います。', effect: 1 },
+          { speaker: 'partner',     text: '——本当ですか。', effect: 1 },
         ],
-        next: null, // 次が無いので「end」イベントが発火する
+        next: 'ch1-scene8',
       },
+
+      // Scene8 家に行く理由
+      'ch1-scene8': {
+        id: 'ch1-scene8',
+        type: 'choice',
+        messages: [
+          { speaker: 'partner', text: 'ただ、社内のVPNが今メンテで使えなくて。', effect: 2 },
+          { speaker: 'partner', text: '家のデスクトップからじゃないと、本番に触れないんです。', effect: 2 },
+          { speaker: 'partner', text: '……非常識なお願いだって、わかってます。', effect: 2 },
+        ],
+        choices: [
+          { label: '今から行きましょう',             next: 'ch1-scene9' },
+          { label: '明日の朝早くじゃダメですか？',   flags: { F_intervene: -1 }, next: 'ch1-scene9' },
+          { label: 'やっぱり、自分には関係ない話かも', flags: { F_empathy: -1 }, next: 'ch1-scene9' },
+        ],
+      },
+
+      // Scene9 移動：軽い違和感（強制進行）
+      'ch1-scene9': {
+        id: 'ch1-scene9',
+        type: 'forced',
+        messages: [
+          { speaker: 'narration',   text: '夜道。タクシーの窓に街灯が流れる。', effect: 2 },
+          { speaker: 'partner',     text: 'すぐ着きます。少し奥なんですけど。', effect: 2 },
+          { speaker: 'protagonist', text: '（……住所、ちゃんと聞いてなかった気がする。）', effect: 2 },
+          { speaker: 'partner',     text: '運転手さん、その先の路地、左で。', effect: 2 },
+          { speaker: 'narration',   text: 'ナビは点いていない。', effect: 2 },
+        ],
+        next: 'ch1-scene10',
+      },
+
+      // Scene10 玄関：表示上の3択 / 実際は強制進行（スタンガン → blackout）
+      // 末尾で transitionToChapter2() を呼んで Chapter2 へ。
+      'ch1-scene10': {
+        id: 'ch1-scene10',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration',   text: 'マンションの一室。ドアが静かに開く。', effect: 2 },
+          { speaker: 'narration',   text: '……空気が、冷たい。', effect: 2 },
+          { speaker: 'narration',   text: '足音が、廊下に吸い込まれて消える。', effect: 2 },
+          { speaker: 'protagonist', text: '（——あれ。）', effect: 2 },
+          { speaker: 'protagonist', text: '（昼間のチャット。「対応済みです」って、誰が？）', effect: 2 },
+          { speaker: 'partner',     text: 'どうぞ。奥です。', effect: 2 },
+        ],
+        // 表示上は3択あるが、いずれを選んでも 'ch1-scene10-blackout' に進む（仕様準拠）
+        choices: [
+          { label: '帰ります、と言って引き返す',   next: 'ch1-scene10-blackout' },
+          { label: '中に入る',                     next: 'ch1-scene10-blackout' },
+          { label: '「忘れ物した」と言ってごまかす', next: 'ch1-scene10-blackout' },
+        ],
+      },
+
+      // Scene10 結末：強制イベント（スタンガン → blackout） → Chapter2 へ変換
+      'ch1-scene10-blackout': {
+        id: 'ch1-scene10-blackout',
+        type: 'forced',
+        messages: [
+          { speaker: 'narration', text: '——背後で、何かが鳴った。', effect: 3 },
+          { speaker: 'narration', text: '体が動かない。', effect: 3 },
+          { speaker: 'narration', text: '視界が、白く弾ける。', effect: 3 },
+          { speaker: 'narration', text: '………', effect: 3 },
+        ],
+        // Chapter2 突入直前にフラグ→内部変数を変換
+        next: 'ch2-transition',
+      },
+
+      // Chapter1 → Chapter2 変換ハブ（即遷移）
+      'ch2-transition': {
+        id: 'ch2-transition',
+        type: 'scene-transition',
+        onEnter: function (state) {
+          // フラグ → Trust / Interest / Risk へ変換
+          transitionToChapter2();
+        },
+        next: 'ch2-scene11',
+      },
+
+      /* ============= Chapter2 ============= */
+
+      // Scene11 覚醒：椅子に縛られて目覚める
+      'ch2-scene11': {
+        id: 'ch2-scene11',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration',   text: '——意識が、戻る。', effect: 3 },
+          { speaker: 'narration',   text: '頬に、固い木の感触。', effect: 3 },
+          { speaker: 'protagonist', text: '（……ここ、どこ。）', effect: 3 },
+          { speaker: 'protagonist', text: '（手が、動かない。）', effect: 3 },
+        ],
+        choices: [
+          { label: '壁を見る',           next: 'ch2-scene12' },
+          { label: '床を見る',           next: 'ch2-scene12' },
+          { label: '自分の体を確認する', next: 'ch2-scene12' },
+        ],
+      },
+
+      // Scene12 部屋の認識：見られていたのは自分
+      'ch2-scene12': {
+        id: 'ch2-scene12',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration',   text: '壁に、写真が貼られている。', effect: 3 },
+          { speaker: 'narration',   text: '何枚も、何枚も。', effect: 3 },
+          { speaker: 'protagonist', text: '（——これ、私だ。）', effect: 3 },
+          { speaker: 'protagonist', text: '（朝の電車。会社のエントランス。先週のカフェ。）', effect: 3 },
+          { speaker: 'narration',   text: '机の上には、起動したままのPC。', effect: 3 },
+        ],
+        choices: [
+          { label: '写真を凝視する',     next: 'ch2-scene13' },
+          { label: 'PCの画面を覗く',     next: 'ch2-scene13' },
+          { label: 'ドアまでの距離を測る', next: 'ch2-scene13' },
+        ],
+      },
+
+      // Scene13 相手の再登場
+      'ch2-scene13': {
+        id: 'ch2-scene13',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: '背後で、ドアが閉まる音。', effect: 3 },
+          { speaker: 'partner',   text: '起きたんだね。', effect: 3 },
+          { speaker: 'partner',   text: '大丈夫。ちゃんと見てたから。', effect: 3 },
+        ],
+        choices: [
+          { label: '黙ったまま、相手を見る',         next: 'ch2-scene14' },
+          { label: '名前を呼ぶ',                     next: 'ch2-scene14' },
+          { label: '「これ、どういうことですか」と問う', next: 'ch2-scene14' },
+        ],
+      },
+
+      // Scene14 対話フェーズ1／否認（全選択肢「否認」: Trust-1, Interest+1, Risk+1）
+      'ch2-scene14': {
+        id: 'ch2-scene14',
+        type: 'choice',
+        messages: [
+          { speaker: 'partner', text: 'ねえ、聞いてもいい？', effect: 3 },
+          { speaker: 'partner', text: 'どうしてあの時、ああしたの？', effect: 3 },
+          { speaker: 'partner', text: '昼間のデータ。あれ、本当はおかしいって、気づいてたよね？', effect: 3 },
+        ],
+        choices: [
+          { label: '「知らない」',     vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
+          { label: '「覚えてない」',   vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
+          { label: '「誤解です」',     vars: { Trust: -1, Interest: +1, Risk: +1 }, next: 'ch2-scene15' },
+        ],
+      },
+
+      // Scene15 対話フェーズ2／正当化（全選択肢「正当化」: Trust+0, Interest+1, Risk+1）
+      'ch2-scene15': {
+        id: 'ch2-scene15',
+        type: 'choice',
+        messages: [
+          { speaker: 'partner', text: 'うん。そう来ると思った。', effect: 3 },
+          { speaker: 'partner', text: 'じゃあ、もうひとつ。', effect: 3 },
+          { speaker: 'partner', text: '去年の、あの引き継ぎのこと。覚えてる？', effect: 3 },
+          { speaker: 'partner', text: '君が「対応済みです」って書いた、あれ。', effect: 3 },
+        ],
+        choices: [
+          { label: '「あの時は仕方なかった」',         vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
+          { label: '「自分だけのせいじゃない」',       vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
+          { label: '「あの時は時間がなかったんです」', vars: { Interest: +1, Risk: +1 }, next: 'ch2-scene16' },
+        ],
+      },
+
+      // Scene16 対話フェーズ3／受容・反撃（4択）
+      'ch2-scene16': {
+        id: 'ch2-scene16',
+        type: 'choice',
+        messages: [
+          { speaker: 'partner', text: '君が気づかないふりをする時の顔、分かるよ。', effect: 3 },
+          { speaker: 'partner', text: '今日は、答え合わせをしたかっただけ。', effect: 3 },
+          { speaker: 'partner', text: 'ねえ、本当はどう思ってる？', effect: 3 },
+        ],
+        choices: [
+          { label: '「後悔しています」',         vars: { Trust: +1, Risk: -1 }, next: 'ch2-scene17' },
+          { label: '相手の話に静かに頷く',       vars: { Trust: +1, Risk: -1 }, next: 'ch2-scene17' },
+          { label: '「あなたは、何が目的なんですか」と逆に問う', vars: { Trust: +1, Interest: +1 }, next: 'ch2-scene17' },
+          { label: '椅子ごと暴れる',             vars: { Trust: -1, Risk: +2 }, next: 'ch2-scene17' },
+        ],
+      },
+
+      // Scene17 外部ノイズ・ニュース
+      // Risk >= 4 の場合は TVニュース（殺人/行方不明）強制発生
+      // Scene16 で「暴れる」を選ぶと Risk +2 で確実に TV ON 経路に入る
+      'ch2-scene17': {
+        id: 'ch2-scene17',
+        type: 'forced',
+        // onEnter で risk を確認し、メッセージを動的に切り替える方が綺麗だが、
+        // SceneEngine の onEnter 設計に揃えるため、next 関数で分岐する形にする。
+        // ここでは共通の導入メッセージを表示し、次を Risk で分岐。
+        messages: [
+          { speaker: 'narration', text: '遠くで、サイレンの音。', effect: 3 },
+          { speaker: 'narration', text: '部屋の隅、つけっぱなしのテレビ。', effect: 3 },
+        ],
+        next: function (state) {
+          const risk = state.get('Risk');
+          // Risk >= 4 なら TV ON（殺人・行方不明事件） → 危険ルート
+          // それ以外は通常ノイズ
+          return risk >= 4 ? 'ch2-scene17-tvon' : 'ch2-scene17-noise';
+        },
+      },
+
+      'ch2-scene17-tvon': {
+        id: 'ch2-scene17-tvon',
+        type: 'forced',
+        messages: [
+          { speaker: 'narration', text: 'テレビが、ふいに音を上げる。', effect: 3 },
+          { speaker: 'narration', text: '——速報。市内で、行方不明者の遺体が発見されました。', effect: 3 },
+          { speaker: 'narration', text: '——現場は、住宅街の一室。', effect: 3 },
+          { speaker: 'partner',   text: 'ああ。これ、近所だね。', effect: 3 },
+        ],
+        next: 'ch2-scene18',
+      },
+
+      'ch2-scene17-noise': {
+        id: 'ch2-scene17-noise',
+        type: 'forced',
+        messages: [
+          { speaker: 'narration', text: 'テレビの音は、低くこもったまま。', effect: 3 },
+          { speaker: 'narration', text: 'サイレンは、少しずつ遠ざかっていく。', effect: 3 },
+          { speaker: 'partner',   text: '……静かだね、ここは。', effect: 3 },
+        ],
+        next: 'ch2-scene18',
+      },
+
+      // Scene18 エンディング分岐：scene-transition ハブ。
+      // onEnter で判定結果を state.ending に格納し、next 関数で分岐先を返す。
+      // forceTransition を使うと _enterScene が二重に sceneChange / end を発火するため、
+      // ここでは「次のシーンIDを返す」純粋関数として実装する。
+      'ch2-scene18': {
+        id: 'ch2-scene18',
+        type: 'scene-transition',
+        onEnter: function (state) {
+          const ending = determineEnding();
+          state.set('ending', ending);
+        },
+        next: function (state) {
+          // 'ending-good' / 'ending-escape' / 'ending-bad' / 'ending-lost'
+          return 'ending-' + state.get('ending').toLowerCase();
+        },
+      },
+
+      /* ============= Endings ============= */
+
+      // GOOD: 信頼＋受容。微かな救い。
+      'ending-good': {
+        id: 'ending-good',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: '——END：GOOD', effect: 3 },
+          { speaker: 'partner',   text: 'そっか。ちゃんと、答えてくれたね。', effect: 3 },
+          { speaker: 'partner',   text: '今日はもう、休んだ方がいい。', effect: 3 },
+          { speaker: 'narration', text: '結束が、静かに緩む。', effect: 3 },
+          { speaker: 'narration', text: '玄関のドアが、外側から開いている。', effect: 3 },
+          { speaker: 'narration', text: '——救われたわけではない。', effect: 3 },
+          { speaker: 'narration', text: 'ただ、今夜は、生きて帰れるらしい。', effect: 3 },
+        ],
+        choices: [
+          { label: 'もう一度プレイする', next: '__restart__' },
+          { label: 'タイトルへ戻る',     next: '__title__' },
+        ],
+      },
+
+      // ESCAPE: 時間稼ぎ成功。緊張継続。
+      'ending-escape': {
+        id: 'ending-escape',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration',   text: '——END：ESCAPE', effect: 3 },
+          { speaker: 'partner',     text: 'ねえ、外の音、聞こえる？', effect: 3 },
+          { speaker: 'narration',   text: 'サイレンは、遠ざかったはずだった。', effect: 3 },
+          { speaker: 'narration',   text: 'けれど、今——再び、近づいてくる。', effect: 3 },
+          { speaker: 'partner',     text: '……ちょっと、見てくる。', effect: 3 },
+          { speaker: 'narration',   text: 'ドアの向こうで、足音が止まった。', effect: 3 },
+          { speaker: 'protagonist', text: '（今のうちに。）', effect: 3 },
+        ],
+        choices: [
+          { label: 'もう一度プレイする', next: '__restart__' },
+          { label: 'タイトルへ戻る',     next: '__title__' },
+        ],
+      },
+
+      // BAD: 会話失敗。冷たい結末。
+      'ending-bad': {
+        id: 'ending-bad',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: '——END：BAD', effect: 3 },
+          { speaker: 'partner',   text: '……うん。やっぱり、君はそういう人だね。', effect: 3 },
+          { speaker: 'partner',   text: '最初から、そうじゃないかと思ってた。', effect: 3 },
+          { speaker: 'narration', text: '相手は、静かに立ち上がる。', effect: 3 },
+          { speaker: 'narration', text: '会話は、ここで終わる。', effect: 3 },
+          { speaker: 'narration', text: '——部屋の明かりが、落ちる。', effect: 3 },
+        ],
+        choices: [
+          { label: 'もう一度プレイする', next: '__restart__' },
+          { label: 'タイトルへ戻る',     next: '__title__' },
+        ],
+      },
+
+      // LOST: 同化。最も後味が悪い。
+      'ending-lost': {
+        id: 'ending-lost',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration',   text: '——END：LOST', effect: 3 },
+          { speaker: 'partner',     text: 'ねえ、わかってきたでしょう。', effect: 3 },
+          { speaker: 'partner',     text: '私たち、よく似てる。', effect: 3 },
+          { speaker: 'partner',     text: '前から、そう思ってたんだ。', effect: 3 },
+          { speaker: 'protagonist', text: '（——そうかもしれない。）', effect: 3 },
+          { speaker: 'narration',   text: '結束を解かれた手が、ゆっくり、相手の指に触れる。', effect: 3 },
+          { speaker: 'narration',   text: 'ここから、外には出ない。', effect: 3 },
+          { speaker: 'narration',   text: 'もう、出る理由もない。', effect: 3 },
+        ],
+        choices: [
+          { label: 'もう一度プレイする', next: '__restart__' },
+          { label: 'タイトルへ戻る',     next: '__title__' },
+        ],
+      },
+
     };
 
-    NS.DEMO_SCENES = DEMO_SCENES;
+    NS.ALL_SCENES = ALL_SCENES;
 
     /* ===============================================================
      * UI（Phase 2: チャットUI / AUTO / SKIP / LOG / MENU 実装）
@@ -1142,19 +1655,41 @@
       }
 
       // chapter / scene 番号をシーンIDから推定して表示する。
-      // demo-* もそれっぽく出す（Phase 3 で本番シーン投入時に上書きされる）。
+      // - 'ch1-sceneN' / 'ch2-sceneN' / 'ending-xxx' / 'demo-N' を判別。
       function updateProgress(sceneId) {
         if (!sceneId) {
           $progress.textContent = 'Ch.- / Scene -';
           return;
         }
-        // 'scene-7' / 'scene7' / 'demo-1' などから数値を抽出
-        const m = String(sceneId).match(/(\d+)/);
+        const id = String(sceneId);
+
+        // エンディング画面: Ending: GOOD など
+        if (id.indexOf('ending-') === 0) {
+          const tag = id.slice('ending-'.length).toUpperCase();
+          $progress.textContent = 'Ending : ' + tag;
+          return;
+        }
+
+        // 'ch1-sceneN' 形式（最優先）: chapter は ID の "ch1"/"ch2" から決定
+        const chMatch = id.match(/^ch(\d)-scene(\d+)/);
+        if (chMatch) {
+          $progress.textContent = 'Ch.' + chMatch[1] + ' / Scene ' + chMatch[2];
+          return;
+        }
+
+        // ハブシーン（ch2-transition 等）も Ch2 として扱う
+        const chHub = id.match(/^ch(\d)-/);
+        if (chHub) {
+          $progress.textContent = 'Ch.' + chHub[1] + ' / —';
+          return;
+        }
+
+        // フォールバック: 数値抽出
+        const m = id.match(/(\d+)/);
         const n = m ? parseInt(m[1], 10) : null;
         let chapter = '-';
         let scene = n != null ? n : '-';
         if (n != null) {
-          // 仕様: Chapter1 = Scene1..10, Chapter2 = Scene11..18
           chapter = n <= 10 ? 1 : 2;
         }
         $progress.textContent = 'Ch.' + chapter + ' / Scene ' + scene;
@@ -1315,6 +1850,32 @@
           if (b === selectedBtn) b.classList.add('is-selected');
           else b.classList.add('is-dimmed');
         });
+
+        // エンディング画面の特殊サニチネル: __restart__ / __title__
+        // 通常シーンと同じ choice UI で扱うため、ここで横取りする。
+        if (choice && (choice.next === '__restart__' || choice.next === '__title__')) {
+          appendChoiceEcho(choice.label);
+          setTimeout(() => {
+            if (choice.next === '__restart__') {
+              // セーブを破棄して最初から
+              GameState.reset();
+              $chat.innerHTML = '';
+              clearChoices();
+              ui.waiting = false;
+              ui.pendingChoices = false;
+              ui.pendingForced = false;
+              ui.typing = false;
+              if (ui.typingTimer) { clearTimeout(ui.typingTimer); ui.typingTimer = null; }
+              clearAutoTimer();
+              SceneEngine.start('ch1-scene1');
+            } else {
+              // タイトルへ戻る = ページリロード
+              location.reload();
+            }
+          }, 350);
+          return;
+        }
+
         // 主人公の発話としてチャットに追加（"> ラベル"）してから進行
         // → SceneEngine.choose() 内で GameState.appendLog も走るので、
         //   ここでは「画面表示だけ」を担当する。
@@ -1536,8 +2097,8 @@
           if (ui.typingTimer) { clearTimeout(ui.typingTimer); ui.typingTimer = null; }
           clearAutoTimer();
           closeModal($modalMenu);
-          // デモから再開（Phase 3 で本番シーンに差し替え予定）
-          SceneEngine.start('demo-1');
+          // 本番シナリオの最初のシーンから再開
+          SceneEngine.start('ch1-scene1');
         });
 
         // 「タイトルへ戻る」: ページリロード（簡素なタイトル復帰相当）
@@ -1641,9 +2202,9 @@
         bindEngine();
         // 初期 AUTO 状態を反映（OFF）
         setAutoMode(false);
-        // ダミーシーンをロードして開始（Phase 3 で本番シーンに差し替え予定）
-        SceneEngine.loadScenes(DEMO_SCENES);
-        SceneEngine.start('demo-1');
+        // 本番シナリオをロードして開始
+        SceneEngine.loadScenes(ALL_SCENES);
+        SceneEngine.start('ch1-scene1');
       }
 
       return { boot };

@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <!--
+    モバイル縦持ち最適化:
+    - viewport-fit=cover で iPhone のセーフエリアに対応
+    - user-scalable=no で意図しないピンチズームを抑止（チャットUIのため）
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#14110f" />
+  <title>マッチしたのは、誰？</title>
+
+  <style>
+    /* =========================================================
+     * カラートークン
+     * ダーク基調 + 暖色アクセント（前半・恋愛モード想定）。
+     * Chapter2 以降で別テーマに切り替えやすくするため CSS 変数化。
+     * ========================================================= */
+    :root {
+      /* 背景・ベース */
+      --color-bg: #14110f;          /* 画面全体の背景（深いダーク） */
+      --color-bg-elev: #1d1916;     /* 一段持ち上がった面（ヘッダー/フッター） */
+      --color-bg-chat: #181513;     /* チャットエリアの背景 */
+      --color-surface: #2a2421;     /* バブル等の面 */
+      --color-surface-2: #322b27;   /* 押下時 */
+
+      /* テキスト */
+      --color-text: #f5ece4;        /* 主要テキスト（暖色寄りの白） */
+      --color-text-dim: #b9aea4;    /* 弱いテキスト */
+      --color-text-muted: #7a7068;  /* さらに弱いテキスト（メタ情報） */
+
+      /* アクセント（暖色） */
+      --color-accent: #e8a064;      /* 主アクセント（オレンジ寄り） */
+      --color-accent-strong: #f0b27a;
+      --color-accent-dim: #c98750;
+
+      /* バブル色分け */
+      --color-bubble-partner: #2a2421;     /* 相手（左） */
+      --color-bubble-protagonist: #5a3a26; /* 主人公（右）：暖色寄り */
+      --color-narration: #8d8278;          /* 地の文（中央） */
+
+      /* レイアウト */
+      --max-width: 480px;           /* スマホ縦持ち想定の最大幅 */
+      --header-height: 48px;
+      --footer-height: 56px;
+      --radius-bubble: 14px;
+      --radius-button: 10px;
+
+      /* フォント */
+      --font-base:
+        -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+        "Yu Gothic", Meiryo, sans-serif;
+    }
+
+    /* リセット最小限 */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+
+    body {
+      font-family: var(--font-base);
+      font-size: 15px;
+      line-height: 1.55;
+      color: var(--color-text);
+      background: var(--color-bg);
+      /* スクロール挙動: チャット内のみスクロールするため body は固定 */
+      overflow: hidden;
+      /* セーフエリア（iPhone notch / home indicator）への配慮 */
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* =========================================================
+     * アプリ全体のシェル
+     * 縦に4エリア（ヘッダー / メイン / 選択肢 / フッター）を積む。
+     * 中央寄せして max-width を制限することでタブレット/PCでも崩れない。
+     * ========================================================= */
+    .app {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: var(--max-width);
+      height: 100dvh; /* dvh: モバイルブラウザのアドレスバー伸縮に追従 */
+      margin: 0 auto;
+      background: var(--color-bg);
+      /* 端を視認しやすく（max-width を超える画面で背景と区別） */
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.03);
+    }
+
+    /* ヘッダー -------------------------------------------------- */
+    .app-header {
+      flex: 0 0 var(--header-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      background: var(--color-bg-elev);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .app-header__title {
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    .app-header__progress {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* メイン（チャット） --------------------------------------- */
+    .app-main {
+      flex: 1 1 auto;
+      min-height: 0; /* flex子の overflow を効かせるため */
+      overflow-y: auto;
+      overflow-x: hidden;
+      background: var(--color-bg-chat);
+      padding: 12px 12px 8px;
+      /* スマホでの慣性スクロール */
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* チャット行（共通） */
+    .msg {
+      display: flex;
+      margin-bottom: 8px;
+      animation: msg-in 220ms ease-out;
+    }
+    @keyframes msg-in {
+      from { opacity: 0; transform: translateY(4px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .msg__bubble {
+      max-width: 78%;
+      padding: 9px 12px;
+      border-radius: var(--radius-bubble);
+      word-wrap: break-word;
+      white-space: pre-wrap;
+      font-size: 14.5px;
+    }
+    /* 相手（左寄せ） */
+    .msg--partner { justify-content: flex-start; }
+    .msg--partner .msg__bubble {
+      background: var(--color-bubble-partner);
+      border-top-left-radius: 4px; /* 吹き出しの角ヒント */
+      color: var(--color-text);
+    }
+    /* 主人公（右寄せ） */
+    .msg--protagonist { justify-content: flex-end; }
+    .msg--protagonist .msg__bubble {
+      background: var(--color-bubble-protagonist);
+      border-top-right-radius: 4px;
+      color: var(--color-text);
+    }
+    /* 地の文（中央寄せ） */
+    .msg--narration { justify-content: center; }
+    .msg--narration .msg__bubble {
+      background: transparent;
+      color: var(--color-narration);
+      font-size: 12.5px;
+      text-align: center;
+      max-width: 90%;
+      font-style: italic;
+    }
+
+    /* 選択肢エリア --------------------------------------------- */
+    .app-choices {
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--color-bg);
+      border-top: 1px solid rgba(255,255,255,0.04);
+      max-height: 45dvh; /* 多選択肢時に画面を埋め尽くさないように */
+      overflow-y: auto;
+    }
+    .app-choices:empty {
+      /* 選択肢が無い時は領域を消す */
+      padding: 0;
+      border-top: none;
+    }
+    .choice-btn {
+      width: 100%;
+      padding: 12px 14px;
+      text-align: left;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: var(--radius-button);
+      border: 1px solid rgba(255,255,255,0.05);
+      font-size: 14.5px;
+      transition: background-color 120ms ease, transform 80ms ease;
+    }
+    .choice-btn:active {
+      background: var(--color-surface-2);
+      transform: scale(0.99);
+    }
+    .choice-btn--accent {
+      /* 「進む」「次へ」のような確定的アクションに使う */
+      background: var(--color-accent-dim);
+      color: #1a120c;
+      font-weight: 600;
+      border-color: transparent;
+    }
+    .choice-btn--accent:active {
+      background: var(--color-accent);
+    }
+
+    /* フッター（コントロール） --------------------------------- */
+    .app-footer {
+      flex: 0 0 var(--footer-height);
+      display: flex;
+      align-items: center;
+      justify-content: space-around;
+      gap: 4px;
+      padding: 0 8px;
+      background: var(--color-bg-elev);
+      border-top: 1px solid rgba(255,255,255,0.04);
+    }
+    .ctrl-btn {
+      flex: 1;
+      padding: 8px 4px;
+      font-size: 11px;
+      letter-spacing: 0.06em;
+      color: var(--color-text-dim);
+      border-radius: 8px;
+    }
+    .ctrl-btn:active { background: var(--color-surface); }
+    .ctrl-btn--active { color: var(--color-accent); }
+
+    /* 画面が縦に小さい時の調整（例: 横向き） */
+    @media (orientation: landscape) and (max-height: 500px) {
+      .app-choices { max-height: 60dvh; }
+    }
+  </style>
+</head>
+<body>
+  <!--
+    ゲーム本体のルート。
+    4エリア構成（仕様: ui-spec.md の「画面レイアウト」）:
+      1. <header>  ヘッダー
+      2. <main>    チャット表示エリア
+      3. <section> 選択肢エリア
+      4. <footer>  コントロールバー
+    Phase 1 ではプレースホルダ表示まで。UI実装は後続フェーズで行う。
+  -->
+  <div class="app" id="app">
+
+    <header class="app-header">
+      <div class="app-header__title">マッチしたのは、誰？</div>
+      <div class="app-header__progress" id="header-progress">Ch.- / Scene -</div>
+    </header>
+
+    <main class="app-main" id="chat-area" aria-live="polite">
+      <!-- チャットメッセージはここに動的追加される -->
+    </main>
+
+    <section class="app-choices" id="choices" aria-label="選択肢">
+      <!-- 選択肢ボタンはここに動的追加される -->
+    </section>
+
+    <footer class="app-footer">
+      <!-- Phase 1 ではボタンは見た目のみ（後続でハンドラを実装） -->
+      <button class="ctrl-btn" type="button" data-ctrl="auto">AUTO</button>
+      <button class="ctrl-btn" type="button" data-ctrl="skip">SKIP</button>
+      <button class="ctrl-btn" type="button" data-ctrl="log">LOG</button>
+      <button class="ctrl-btn" type="button" data-ctrl="menu">MENU</button>
+    </footer>
+
+  </div>
+
+  <script>
+  /* =================================================================
+   * WhosMatching: グローバル名前空間
+   * Phase 1 では以下の3モジュールを公開する:
+   *   - WhosMatching.GameState : 状態管理 + LocalStorage 永続化
+   *   - WhosMatching.SceneEngine : シーン進行エンジン
+   *   - WhosMatching.UI : 最低限の表示ハンドラ（Phase 1 動作確認用）
+   *
+   * モジュール間は「イベントエミッタ（簡易）」で疎結合にする。
+   * UI 実装フェーズで UI を差し替えられるようにするため。
+   * ================================================================= */
+  (function (global) {
+    'use strict';
+
+    const NS = (global.WhosMatching = global.WhosMatching || {});
+
+    /* ---------------------------------------------------------------
+     * Emitter: 超簡易イベントエミッタ
+     * SceneEngine が UI に通知するための仕組み。
+     * 過剰実装を避けるため on/off/emit のみ。
+     * --------------------------------------------------------------- */
+    function createEmitter() {
+      const handlers = Object.create(null);
+      return {
+        on(event, fn) {
+          (handlers[event] || (handlers[event] = [])).push(fn);
+        },
+        off(event, fn) {
+          const list = handlers[event];
+          if (!list) return;
+          const i = list.indexOf(fn);
+          if (i >= 0) list.splice(i, 1);
+        },
+        emit(event, payload) {
+          const list = handlers[event];
+          if (!list) return;
+          // 配列のコピーを取って反復中の追加/削除に耐える
+          list.slice().forEach((fn) => {
+            try { fn(payload); }
+            catch (e) { console.error('[emitter]', event, e); }
+          });
+        },
+      };
+    }
+    NS.createEmitter = createEmitter;
+
+    /* ===============================================================
+     * GameState
+     * フラグ・内部変数・進行情報を保持。LocalStorage に永続化する。
+     * 仕様: docs/scenario-game-spec.md
+     *
+     * フラグ:
+     *   F_workCare  (0..2)
+     *   F_empathy   (0..3)
+     *   F_honesty   (-2..2)
+     *   F_intervene (0..3)
+     * 内部変数:
+     *   Trust    (0..5)
+     *   Interest (0..5)
+     *   Risk     (0..5)
+     * その他:
+     *   sceneId         : 現在シーンID
+     *   protagonist     : { gender: 'female'|'male', name: string }
+     *   log             : 表示済みメッセージのログ
+     *   ending          : null | 'GOOD'|'ESCAPE'|'BAD'|'LOST'
+     * =============================================================== */
+
+    // 値域定義。範囲外はクランプする（仕様準拠）。
+    const RANGES = Object.freeze({
+      F_workCare:  [0, 2],
+      F_empathy:   [0, 3],
+      F_honesty:   [-2, 2],
+      F_intervene: [0, 3],
+      Trust:       [0, 5],
+      Interest:    [0, 5],
+      Risk:        [0, 5],
+    });
+
+    // 永続化キー。スキーマ変更時はサフィックスを上げる。
+    const STORAGE_KEY = 'whos-matching/save-v1';
+
+    // 初期状態を毎回新しいオブジェクトとして返す（参照共有を避ける）。
+    function createInitialState() {
+      return {
+        // フラグ（Chapter1）
+        F_workCare:  0,
+        F_empathy:   0,
+        F_honesty:   0,
+        F_intervene: 0,
+        // 内部変数（Chapter2）
+        Trust:    0,
+        Interest: 0,
+        Risk:     0,
+        // 進行
+        sceneId: null,
+        // 主人公（デフォルト: 女性「美咲」。男性は character-spec.md に従い「拓海」）
+        protagonist: { gender: 'female', name: '美咲' },
+        // ログ履歴（{speaker, text, sceneId}[]）
+        log: [],
+        // エンディング判定（Scene18 で確定）
+        ending: null,
+      };
+    }
+
+    function clamp(value, min, max) {
+      if (value < min) return min;
+      if (value > max) return max;
+      return value;
+    }
+
+    const GameState = (function () {
+      // 内部状態（外部から直接書き換えられないようクロージャに閉じる）
+      let state = createInitialState();
+
+      function get(key) {
+        // 浅いコピーは不要（プリミティブ中心）。オブジェクトのみ複製して返す。
+        const v = state[key];
+        if (v && typeof v === 'object') {
+          return Array.isArray(v) ? v.slice() : Object.assign({}, v);
+        }
+        return v;
+      }
+
+      function getAll() {
+        // デバッグ用。ログ等を含む浅いコピー。
+        return JSON.parse(JSON.stringify(state));
+      }
+
+      function set(key, value) {
+        if (key in RANGES) {
+          const [min, max] = RANGES[key];
+          state[key] = clamp(value, min, max);
+        } else {
+          // 範囲定義外（sceneId, protagonist, log, ending 等）はそのまま代入
+          state[key] = value;
+        }
+        return state[key];
+      }
+
+      function update(key, delta) {
+        if (!(key in RANGES)) {
+          throw new Error('GameState.update: ' + key + ' は数値範囲が定義されていません');
+        }
+        const [min, max] = RANGES[key];
+        state[key] = clamp(state[key] + delta, min, max);
+        return state[key];
+      }
+
+      // ログ追加（履歴保持）
+      function appendLog(entry) {
+        state.log.push(entry);
+        // 過大化防止: 直近 500 件まで（Phase 1 程度では十分）
+        if (state.log.length > 500) state.log.splice(0, state.log.length - 500);
+      }
+
+      // 永続化
+      function save() {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          return true;
+        } catch (e) {
+          // QuotaExceeded やプライベートモード等。Phase 1 ではログのみ。
+          console.warn('[GameState.save] failed:', e);
+          return false;
+        }
+      }
+
+      function load() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          // 初期状態にマージ（旧スキーマで欠落キーがあっても落ちないように）
+          state = Object.assign(createInitialState(), parsed);
+          // protagonist は入れ子なので個別にマージ
+          state.protagonist = Object.assign(
+            { gender: 'female', name: '美咲' },
+            parsed.protagonist || {}
+          );
+          if (!Array.isArray(state.log)) state.log = [];
+          return true;
+        } catch (e) {
+          console.warn('[GameState.load] failed:', e);
+          return false;
+        }
+      }
+
+      function reset() {
+        state = createInitialState();
+        try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* noop */ }
+      }
+
+      return {
+        get, getAll, set, update,
+        appendLog,
+        save, load, reset,
+        // 定数も公開（テスト・UIから参照可能に）
+        RANGES, STORAGE_KEY,
+      };
+    })();
+
+    NS.GameState = GameState;
+
+    /* ===============================================================
+     * Scene データ構造（型コメント）
+     * ---------------------------------------------------------------
+     * シーンは「メッセージ列 + 末尾アクション」で構成する。
+     * speaker は表示位置を決定:
+     *   - 'partner'     左
+     *   - 'protagonist' 右
+     *   - 'narration'   中央（地の文）
+     *
+     * @typedef {Object} Message
+     * @property {'partner'|'protagonist'|'narration'} speaker
+     * @property {string} text
+     * @property {number} [speed]   1文字あたり ms（演出速度）。未指定はデフォルト値
+     * @property {1|2|3} [effect]   特殊効果Lv（1:前半 / 2:中盤 / 3:後半）
+     * @property {string} [tone]    色温度 'warm'|'neutral'|'cold'（演出ヒント）
+     *
+     * @typedef {Object} Choice
+     * @property {string} label                 ボタンに表示するテキスト
+     * @property {Object<string,number>} [flags]    フラグ加減算 { F_empathy: 1, ... }
+     * @property {Object<string,number>} [vars]     内部変数加減算 { Trust: 1, ... }
+     * @property {string} next                  次シーンID
+     *
+     * @typedef {Object} Scene
+     * @property {string} id
+     * @property {'message'|'choice'|'forced'|'scene-transition'} type
+     *   - 'choice'           : 末尾に選択肢を出す
+     *   - 'forced'           : 選択肢なしで「進む」のみ（演出上の強制進行）
+     *   - 'scene-transition' : 即座に next へ遷移（演出/分岐ハブ用）
+     *   - 'message'          : 'forced' と同義（メッセージ完了で next）
+     * @property {Message[]} [messages]         表示する発話列
+     * @property {Choice[]}  [choices]          type === 'choice' 時のみ
+     * @property {string}    [next]             type === 'forced' / 'message' / 'scene-transition' 時の遷移先
+     * =============================================================== */
+
+    /* ===============================================================
+     * SceneEngine
+     * シーンデータを読み込み、進行を制御する。
+     *
+     * 公開API:
+     *   loadScenes(scenesById)
+     *   start(sceneId)
+     *   getCurrentScene()
+     *   advance()              次の発話 / 選択肢表示 / 遷移へ進める
+     *   choose(choiceIndex)    選択肢を確定してフラグ反映 + 遷移
+     *   forceTransition(id)    任意シーンへ強制遷移
+     *   on(event, handler)     'message'|'choices'|'sceneChange'|'end'
+     *
+     * 設計方針:
+     *   - エンジンは UI を持たない。表示はイベントを購読した側で行う。
+     *   - 状態の永続化はシーン変更時に GameState.save() を呼ぶ（自動保存）。
+     * =============================================================== */
+    const SceneEngine = (function () {
+      const emitter = createEmitter();
+
+      let scenes = Object.create(null); // id -> Scene
+      let current = null;               // 現在の Scene
+      let cursor = 0;                   // 現在のメッセージインデックス
+
+      function loadScenes(scenesById) {
+        scenes = scenesById || Object.create(null);
+      }
+
+      function getCurrentScene() {
+        return current;
+      }
+
+      function _enterScene(sceneId) {
+        const scene = scenes[sceneId];
+        if (!scene) {
+          console.error('[SceneEngine] 未定義のシーンID:', sceneId);
+          emitter.emit('end', { reason: 'missing-scene', sceneId });
+          return;
+        }
+        current = scene;
+        cursor = 0;
+
+        // GameState を更新 + 自動保存（仕様: シーン遷移時に自動保存）
+        GameState.set('sceneId', sceneId);
+        GameState.save();
+
+        emitter.emit('sceneChange', { sceneId, scene });
+
+        // scene-transition は即座に次へ（メッセージを持たないハブ）
+        if (scene.type === 'scene-transition') {
+          if (scene.next) _enterScene(scene.next);
+          else emitter.emit('end', { reason: 'transition-no-next', sceneId });
+          return;
+        }
+
+        // 最初のメッセージを発火（あれば）
+        if (scene.messages && scene.messages.length > 0) {
+          _emitMessage();
+        } else {
+          // メッセージが無い場合は即座に末尾アクションへ
+          _emitEndOfMessages();
+        }
+      }
+
+      function _emitMessage() {
+        const msg = current.messages[cursor];
+        // ログ保持
+        GameState.appendLog({
+          speaker: msg.speaker,
+          text: msg.text,
+          sceneId: current.id,
+        });
+        emitter.emit('message', {
+          message: msg,
+          index: cursor,
+          total: current.messages.length,
+          sceneId: current.id,
+        });
+      }
+
+      function _emitEndOfMessages() {
+        // メッセージ列を消化したら、シーン種別に応じて次の動作を発火
+        if (current.type === 'choice') {
+          emitter.emit('choices', {
+            choices: current.choices || [],
+            sceneId: current.id,
+          });
+        } else {
+          // 'forced' / 'message' / それ以外: 「進む」を提示
+          emitter.emit('forced', {
+            next: current.next || null,
+            sceneId: current.id,
+          });
+        }
+      }
+
+      // 次の発話へ。発話を出し切ったら末尾アクションを通知。
+      function advance() {
+        if (!current) return;
+        if (!current.messages || current.messages.length === 0) {
+          _emitEndOfMessages();
+          return;
+        }
+        cursor += 1;
+        if (cursor < current.messages.length) {
+          _emitMessage();
+        } else {
+          _emitEndOfMessages();
+        }
+      }
+
+      // 選択肢を確定してフラグ・内部変数を反映、次シーンへ。
+      function choose(choiceIndex) {
+        if (!current || current.type !== 'choice') {
+          console.warn('[SceneEngine.choose] 現在のシーンは選択肢を持たない');
+          return;
+        }
+        const choice = (current.choices || [])[choiceIndex];
+        if (!choice) {
+          console.warn('[SceneEngine.choose] 不正なインデックス:', choiceIndex);
+          return;
+        }
+
+        // フラグ加減算
+        if (choice.flags) {
+          for (const k in choice.flags) {
+            GameState.update(k, choice.flags[k]);
+          }
+        }
+        // 内部変数加減算
+        if (choice.vars) {
+          for (const k in choice.vars) {
+            GameState.update(k, choice.vars[k]);
+          }
+        }
+
+        // 選択した内容もログに（後でLOG画面で振り返れるように）
+        GameState.appendLog({
+          speaker: 'protagonist',
+          text: '> ' + choice.label,
+          sceneId: current.id,
+          choice: true,
+        });
+
+        // 遷移
+        if (choice.next) {
+          _enterScene(choice.next);
+        } else {
+          emitter.emit('end', { reason: 'choice-no-next', sceneId: current.id });
+        }
+      }
+
+      // 強制遷移（演出やデバッグ用）
+      function forceTransition(sceneId) {
+        _enterScene(sceneId);
+      }
+
+      // 「forced」末尾アクションから次シーンへ進める
+      function proceedForced() {
+        if (!current) return;
+        if (current.next) _enterScene(current.next);
+        else emitter.emit('end', { reason: 'forced-no-next', sceneId: current.id });
+      }
+
+      function start(sceneId) {
+        _enterScene(sceneId);
+      }
+
+      return {
+        loadScenes, start,
+        getCurrentScene,
+        advance, choose, forceTransition, proceedForced,
+        on:  emitter.on,
+        off: emitter.off,
+      };
+    })();
+
+    NS.SceneEngine = SceneEngine;
+
+    /* ===============================================================
+     * ダミーシーンデータ（Phase 1 動作確認用）
+     * Scene1 → 選択肢 → Scene2（forced）→ Scene3（終了表示）の流れ。
+     * 本番シナリオは Phase 2 以降で差し替える。
+     * =============================================================== */
+    const DEMO_SCENES = {
+      'demo-1': {
+        id: 'demo-1',
+        type: 'choice',
+        messages: [
+          { speaker: 'narration', text: '通勤電車。スマホを開く。', tone: 'warm', effect: 1 },
+          { speaker: 'partner',   text: 'はじめまして。プロフィール見ました。', tone: 'warm' },
+          { speaker: 'partner',   text: '同じ会社、ですよね…？', tone: 'warm' },
+        ],
+        choices: [
+          { label: '丁寧に返信する', flags: { F_empathy:   +1 }, next: 'demo-2' },
+          { label: '軽く返信する',   flags: { F_intervene: +1 }, next: 'demo-2' },
+          { label: '少しごまかす',   flags: { F_honesty:   -1 }, next: 'demo-2' },
+        ],
+      },
+
+      'demo-2': {
+        id: 'demo-2',
+        type: 'forced',
+        messages: [
+          { speaker: 'protagonist', text: '（…返信を送った。）' },
+          { speaker: 'partner',     text: 'ありがとうございます。今度よかったら。' },
+        ],
+        next: 'demo-3',
+      },
+
+      'demo-3': {
+        id: 'demo-3',
+        type: 'forced',
+        messages: [
+          { speaker: 'narration', text: '——Phase 1 動作確認はここまで。', effect: 2 },
+        ],
+        next: null, // 次が無いので「end」イベントが発火する
+      },
+    };
+
+    NS.DEMO_SCENES = DEMO_SCENES;
+
+    /* ===============================================================
+     * UI（Phase 1: 最低限の表示）
+     * 本格的なUI（タイプライタ表示・AUTO・SKIP・LOG・MENU）は Phase 2+。
+     * ここでは SceneEngine が動くことを確認するための最小実装にとどめる。
+     * =============================================================== */
+    const UI = (function () {
+      const $chat     = document.getElementById('chat-area');
+      const $choices  = document.getElementById('choices');
+      const $progress = document.getElementById('header-progress');
+
+      function clearChoices() {
+        $choices.innerHTML = '';
+      }
+
+      function appendMessage(message) {
+        const row = document.createElement('div');
+        row.className = 'msg msg--' + message.speaker;
+        const bubble = document.createElement('div');
+        bubble.className = 'msg__bubble';
+        bubble.textContent = message.text;
+        row.appendChild(bubble);
+        $chat.appendChild(row);
+        // 最新メッセージへスクロール
+        $chat.scrollTop = $chat.scrollHeight;
+      }
+
+      function renderChoices(choices) {
+        clearChoices();
+        choices.forEach((choice, idx) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'choice-btn';
+          btn.textContent = choice.label;
+          btn.addEventListener('click', () => {
+            // 選択を表示してから進行
+            SceneEngine.choose(idx);
+          });
+          $choices.appendChild(btn);
+        });
+      }
+
+      function renderForced(next) {
+        clearChoices();
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'choice-btn choice-btn--accent';
+        btn.textContent = next ? '▶ 次へ' : '— 終わり —';
+        btn.disabled = !next;
+        btn.addEventListener('click', () => {
+          SceneEngine.proceedForced();
+        });
+        $choices.appendChild(btn);
+      }
+
+      function updateProgress(sceneId) {
+        // 簡易表示。Chapter 推定は Phase 2 以降の本番シーンで。
+        $progress.textContent = 'Scene: ' + (sceneId || '-');
+      }
+
+      function bind() {
+        // 1メッセージ表示ごとに「進む」ボタンを出す（Phase 1の最小実装）。
+        // タイプライタ表示や AUTO は後続フェーズで導入する。
+        SceneEngine.on('message', (e) => {
+          appendMessage(e.message);
+          // メッセージごとの中継ボタン。最後のメッセージなら末尾アクションが続く。
+          clearChoices();
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'choice-btn choice-btn--accent';
+          btn.textContent = '▶';
+          btn.setAttribute('aria-label', '次のメッセージへ');
+          btn.addEventListener('click', () => SceneEngine.advance());
+          $choices.appendChild(btn);
+        });
+
+        SceneEngine.on('choices', (e) => {
+          renderChoices(e.choices);
+        });
+
+        SceneEngine.on('forced', (e) => {
+          renderForced(e.next);
+        });
+
+        SceneEngine.on('sceneChange', (e) => {
+          updateProgress(e.sceneId);
+        });
+
+        SceneEngine.on('end', (e) => {
+          console.log('[SceneEngine] end:', e);
+          clearChoices();
+          const note = document.createElement('div');
+          note.className = 'msg msg--narration';
+          const bubble = document.createElement('div');
+          bubble.className = 'msg__bubble';
+          bubble.textContent = '（デモ終了）';
+          note.appendChild(bubble);
+          $chat.appendChild(note);
+        });
+
+        // フッター: Phase 1 ではログ出力のみ（後続でAUTO等を実装）
+        document.querySelectorAll('.ctrl-btn').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            console.log('[ctrl]', btn.dataset.ctrl, 'state:', GameState.getAll());
+          });
+        });
+      }
+
+      function boot() {
+        bind();
+        // ダミーシーンをロードして開始（Phase 1 の動作確認）
+        SceneEngine.loadScenes(DEMO_SCENES);
+        SceneEngine.start('demo-1');
+      }
+
+      return { boot };
+    })();
+
+    NS.UI = UI;
+
+    // DOM 構築後に起動
+    document.addEventListener('DOMContentLoaded', () => {
+      UI.boot();
+    });
+
+  })(window);
+  </script>
+</body>
+</html>

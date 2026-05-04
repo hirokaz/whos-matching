@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  プロフィール（女性） — 横顔シルエット
+  仕様: image-prompts.md / character-spec.md
+  「フル顔NG」を厳守: 横向き・シルエットのみ。
+  暖色寄りトーン（前半・恋愛モード）。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="女性のプロフィール（横顔シルエット）">
+  <defs>
+    <linearGradient id="bgF" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#3a2618"/>
+      <stop offset="1" stop-color="#1d1310"/>
+    </linearGradient>
+    <radialGradient id="lightF" cx="0.78" cy="0.25" r="0.6">
+      <stop offset="0" stop-color="#e8a064" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#e8a064" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#bgF)"/>
+  <rect width="320" height="200" fill="url(#lightF)"/>
+  <g transform="translate(80,28)">
+    <!-- 肩 -->
+    <path d="M 0 170 L 0 135 Q 30 115 60 110 L 75 96 Q 80 90 95 90 L 125 90 Q 145 90 145 105 L 145 122 Q 170 132 200 148 L 200 170 Z" fill="#0d0907" opacity="0.95"/>
+    <!-- 後頭部〜首 -->
+    <path d="M 95 90 Q 80 80 80 56 Q 80 26 116 22 Q 148 26 150 60 L 150 88 Q 150 94 146 96 L 95 96 Z" fill="#0d0907"/>
+    <!-- 長めの髪（背中側に流れる） -->
+    <path d="M 80 60 Q 70 80 64 110 Q 60 130 70 142 L 92 142 Q 90 116 96 100 L 96 88 Z" fill="#0d0907"/>
+    <!-- 髪のハイライト -->
+    <path d="M 88 30 Q 116 18 146 32 Q 152 50 150 64 Q 132 40 112 38 Q 92 42 86 60 Z" fill="#5a3a26" opacity="0.7"/>
+    <!-- 耳（小さく示唆） -->
+    <ellipse cx="138" cy="68" rx="4" ry="6" fill="#2a1c14" opacity="0.5"/>
+  </g>
+</svg>

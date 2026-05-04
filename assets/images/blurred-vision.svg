@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ぼやけた視界（拘束直後）
+  仕様: image-prompts.md「視界ぼやけ」
+  - 暗い部屋に貌のない形がうっすら浮かぶ
+  - 抽象表現（フィルタ風グラデーションでぼかし感）
+  Scene11 用。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="ぼやけた視界、暗い部屋">
+  <defs>
+    <radialGradient id="bgBlur" cx="0.5" cy="0.5" r="0.7">
+      <stop offset="0" stop-color="#1a1d22"/>
+      <stop offset="1" stop-color="#04060a"/>
+    </radialGradient>
+    <!-- SVG filter で実際にぼかす（モバイルでも軽量） -->
+    <filter id="softBlur" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <filter id="hardBlur" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+  <rect width="320" height="200" fill="url(#bgBlur)"/>
+
+  <!-- ぼやけた光の玉（部屋のライト示唆） -->
+  <g filter="url(#hardBlur)" opacity="0.6">
+    <ellipse cx="80" cy="60" rx="30" ry="16" fill="#3a4555"/>
+    <ellipse cx="240" cy="80" rx="40" ry="20" fill="#2a3040"/>
+  </g>
+
+  <!-- ぼやけた家具らしき塊（具体性を与えない） -->
+  <g filter="url(#softBlur)" opacity="0.55">
+    <rect x="40" y="120" width="80" height="50" fill="#1a1d22"/>
+    <rect x="180" y="115" width="100" height="60" fill="#15181c"/>
+    <ellipse cx="160" cy="100" rx="20" ry="30" fill="#2a2e34"/>
+  </g>
+
+  <!-- ノイズっぽい点（視界の揺らぎ） -->
+  <g opacity="0.18" fill="#a8b4c0">
+    <circle cx="40" cy="40" r="0.7"/>
+    <circle cx="120" cy="80" r="0.6"/>
+    <circle cx="220" cy="60" r="0.7"/>
+    <circle cx="280" cy="120" r="0.6"/>
+    <circle cx="60" cy="170" r="0.6"/>
+    <circle cx="180" cy="180" r="0.7"/>
+    <circle cx="100" cy="140" r="0.5"/>
+    <circle cx="260" cy="40" r="0.5"/>
+  </g>
+
+  <!-- 視界の縁（暗い vignette） -->
+  <radialGradient id="vignette" cx="0.5" cy="0.5" r="0.7">
+    <stop offset="0.5" stop-color="#000" stop-opacity="0"/>
+    <stop offset="1" stop-color="#000" stop-opacity="0.85"/>
+  </radialGradient>
+  <rect width="320" height="200" fill="url(#vignette)"/>
+</svg>

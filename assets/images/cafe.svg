@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  カフェ（手元・テーブル）
+  仕様: image-prompts.md - 暖色、安心感、デート空間
+  Scene5 用。フル顔NGのため、コーヒーカップとテーブルのみ。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="カフェの手元・コーヒーカップ">
+  <defs>
+    <linearGradient id="bgCafe" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#3d2716"/>
+      <stop offset="0.6" stop-color="#241612"/>
+      <stop offset="1" stop-color="#14110f"/>
+    </linearGradient>
+    <radialGradient id="warmGlow" cx="0.5" cy="0.2" r="0.7">
+      <stop offset="0" stop-color="#f0b27a" stop-opacity="0.4"/>
+      <stop offset="1" stop-color="#f0b27a" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#bgCafe)"/>
+  <rect width="320" height="200" fill="url(#warmGlow)"/>
+  <!-- テーブル木目 -->
+  <rect x="0" y="120" width="320" height="80" fill="#3a2415" opacity="0.8"/>
+  <line x1="0" y1="135" x2="320" y2="138" stroke="#2a1810" stroke-width="1" opacity="0.5"/>
+  <line x1="0" y1="160" x2="320" y2="158" stroke="#2a1810" stroke-width="1" opacity="0.4"/>
+  <line x1="0" y1="180" x2="320" y2="183" stroke="#2a1810" stroke-width="1" opacity="0.4"/>
+
+  <!-- カップ1（左） -->
+  <g transform="translate(70,90)">
+    <ellipse cx="30" cy="42" rx="26" ry="6" fill="#1a0f08" opacity="0.5"/>
+    <path d="M 6 10 L 8 38 Q 10 44 30 44 Q 50 44 52 38 L 54 10 Z" fill="#e8d5b8"/>
+    <ellipse cx="30" cy="10" rx="24" ry="4" fill="#5a3520"/>
+    <ellipse cx="30" cy="10" rx="20" ry="3" fill="#3a2010"/>
+    <!-- 取手 -->
+    <path d="M 52 18 Q 64 18 64 28 Q 64 36 52 34" fill="none" stroke="#e8d5b8" stroke-width="3"/>
+    <!-- 湯気 -->
+    <path d="M 18 4 Q 16 -4 22 -10 Q 28 -16 24 -22" fill="none" stroke="#f0b27a" stroke-width="1.2" opacity="0.5"/>
+    <path d="M 38 4 Q 40 -4 34 -10 Q 28 -16 32 -22" fill="none" stroke="#f0b27a" stroke-width="1.2" opacity="0.4"/>
+  </g>
+
+  <!-- カップ2（右） -->
+  <g transform="translate(200,95)">
+    <ellipse cx="30" cy="40" rx="26" ry="6" fill="#1a0f08" opacity="0.5"/>
+    <path d="M 6 10 L 8 36 Q 10 42 30 42 Q 50 42 52 36 L 54 10 Z" fill="#d8c5a8"/>
+    <ellipse cx="30" cy="10" rx="24" ry="4" fill="#5a3520"/>
+    <ellipse cx="30" cy="10" rx="20" ry="3" fill="#3a2010"/>
+    <path d="M 52 18 Q 62 18 62 28 Q 62 34 52 32" fill="none" stroke="#d8c5a8" stroke-width="3"/>
+  </g>
+
+  <!-- 窓の光（背景・夜景示唆） -->
+  <rect x="0" y="0" width="320" height="120" fill="#1a1208" opacity="0"/>
+  <circle cx="40" cy="40" r="3" fill="#f0b27a" opacity="0.6"/>
+  <circle cx="80" cy="35" r="2" fill="#f0b27a" opacity="0.5"/>
+  <circle cx="280" cy="42" r="2.5" fill="#f0b27a" opacity="0.5"/>
+  <circle cx="260" cy="30" r="2" fill="#f0b27a" opacity="0.4"/>
+</svg>

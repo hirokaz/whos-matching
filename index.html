@@ -462,9 +462,348 @@
     @media (orientation: landscape) and (max-height: 500px) {
       .app-choices { max-height: 60dvh; }
     }
+
+    /* =========================================================
+     * 画像差し込み（Phase 4 / #30）
+     * ---------------------------------------------------------
+     * メッセージの直前に表示する状況画像。
+     * - 縦長スマホでも視界を奪いすぎないよう高さ制限。
+     * - SVG はビューポートを覆うように cover 表示。
+     * - 暖色/寒色の境界をはっきりさせるため軽い影を入れる。
+     * ========================================================= */
+    .scene-image {
+      width: 100%;
+      max-width: 100%;
+      margin: 4px 0 10px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset,
+                  0 4px 16px rgba(0,0,0,0.4);
+      animation: scene-image-in 360ms ease-out;
+      /* スマホでもアスペクト比固定で安定表示 */
+      aspect-ratio: 16 / 10;
+      background: #0a0c10;
+    }
+    .scene-image > svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+    @keyframes scene-image-in {
+      from { opacity: 0; transform: translateY(4px) scale(0.99); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    /* =========================================================
+     * 特殊効果 Lv1〜3（Phase 4 / #28）
+     * 仕様: docs/ui-spec.md「特殊効果設計」
+     *
+     * Lv1（前半）  : 暖色・安定・ぼかしなし
+     * Lv2（中盤）  : 色温度低下・軽いノイズ・微妙な不規則性
+     * Lv3（後半）  : 画面揺れ・寒色・暗いUI
+     * 玄関演出     : 音消失（彩度低下）・テキスト間が伸びる・背景暗転
+     *
+     * クラスは <body> に付与（.effect-lv-1 / -2 / -3 / .effect-entrance）。
+     * effect の切替時に既存クラスを掃除して新しい1つだけを付ける。
+     * ========================================================= */
+
+    /* Lv1: 既存ベースカラーそのまま。アクセントを少し強めに。 */
+    body.effect-lv-1 {
+      /* なにも変えない。安定。 */
+    }
+
+    /* Lv2: 色温度を下げる + 軽いノイズ
+       色温度低下: hue-rotate でわずかに寒色寄り、saturate で彩度を抑える。
+       ノイズ:   ::after で SVG 風 noise の極薄パターン。 */
+    body.effect-lv-2 .app {
+      filter: saturate(0.85) hue-rotate(-8deg);
+      transition: filter 800ms ease;
+    }
+    body.effect-lv-2 .app::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 50;
+      /* SVG turbulence をデータURLで埋め込む。極薄 opacity で違和感だけ出す。 */
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.9 0 0 0 0 0.9 0 0 0 0 0.95 0 0 0 0.7 0'/></filter><rect width='160' height='160' filter='url(%23n)' opacity='0.55'/></svg>");
+      mix-blend-mode: overlay;
+      opacity: 0.18;
+    }
+    /* .app に position:relative を後付けする（既存はデフォルト static） */
+    body.effect-lv-2 .app,
+    body.effect-lv-3 .app,
+    body.effect-entrance .app {
+      position: relative;
+    }
+
+    /* Lv3: 寒色・画面揺れ・暗UI
+       揺れは「ごく小さく」「不規則に」。脳が酔わない範囲。 */
+    body.effect-lv-3 {
+      /* 後半は背景・サーフェスを寒色寄りに上書き */
+      --color-bg:        #07090e;
+      --color-bg-elev:   #0c0f15;
+      --color-bg-chat:   #080b10;
+      --color-surface:   #161a22;
+      --color-surface-2: #1c2230;
+      --color-text:      #d8dde4;
+      --color-text-dim:  #8a93a0;
+      --color-text-muted:#5a626c;
+      --color-accent:    #6a90c0;
+      --color-accent-strong: #88aadd;
+      --color-accent-dim:#3e5778;
+      --color-bubble-partner: #181d26;
+      --color-bubble-protagonist: #1f2a3c;
+      --color-narration: #5e6878;
+    }
+    body.effect-lv-3 .app {
+      animation: ui-shake-tiny 6.5s ease-in-out infinite;
+      transition: background-color 800ms ease;
+    }
+    @keyframes ui-shake-tiny {
+      /* 6.5s 周期で「不規則」に微震する。1pxを超えない */
+      0%   { transform: translate(0, 0); }
+      8%   { transform: translate(0.5px, -0.5px); }
+      16%  { transform: translate(-0.5px, 0.3px); }
+      24%  { transform: translate(0.4px, 0.5px); }
+      30%  { transform: translate(0, 0); }
+      45%  { transform: translate(0.6px, 0); }
+      52%  { transform: translate(-0.6px, -0.4px); }
+      60%  { transform: translate(0, 0); }
+      75%  { transform: translate(-0.3px, 0.5px); }
+      82%  { transform: translate(0.5px, 0.4px); }
+      100% { transform: translate(0, 0); }
+    }
+    /* スタンガン等のフラッシュ：一時的に最前面で白く点滅 */
+    .effect-flash {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      background: #fff;
+      pointer-events: none;
+      opacity: 0;
+      animation: flash-burst 900ms ease-out forwards;
+    }
+    @keyframes flash-burst {
+      0%   { opacity: 0; }
+      8%   { opacity: 1; }
+      14%  { opacity: 0.4; }
+      20%  { opacity: 1; }
+      40%  { opacity: 0; }
+      60%  { opacity: 0.6; background: #c8d4e0; }
+      75%  { opacity: 0; }
+      100% { opacity: 0; }
+    }
+
+    /* 玄関演出：背景暗転 + テキスト間が伸びる + 彩度ゼロ（音消失の代替）
+       Lv2/Lv3 と排他ではなく「上乗せ」して使う想定。 */
+    body.effect-entrance .app {
+      filter: saturate(0.4) brightness(0.75);
+      transition: filter 1200ms ease;
+    }
+    body.effect-entrance .app-main {
+      background: #04060a;
+      transition: background-color 1200ms ease;
+    }
+    /* メッセージ間隔を広げて「間が伸びる」感覚を出す */
+    body.effect-entrance .msg {
+      margin-bottom: 18px;
+      animation-duration: 480ms;
+    }
+
+    /* ============================================================
+     * タイトル画面（Phase 4 / #29）
+     * 仕様: docs/character-spec.md「主人公性別オプション」
+     *
+     * - 起動時に表示。ゲーム本体（.app）は隠す。
+     * - 性別2択 + 名前入力 + 「はじめる」「続きから」。
+     * - レイアウトはスマホ縦持ち最適化。
+     * ============================================================ */
+    .title-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 150;
+      display: none;
+      flex-direction: column;
+      align-items: stretch;
+      justify-content: center;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+      background:
+        radial-gradient(1200px 600px at 50% -10%, rgba(232,160,100,0.18), transparent 60%),
+        linear-gradient(#0d0a08, #14110f 60%, #07090d);
+      color: var(--color-text);
+      overflow-y: auto;
+    }
+    .title-screen.is-open { display: flex; }
+    .title-screen__panel {
+      width: 100%;
+      max-width: var(--max-width);
+      margin: 0 auto;
+      padding: 28px 22px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    .title-screen__title {
+      font-size: 26px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: 0.04em;
+      text-align: center;
+      color: var(--color-text);
+      /* タイトルを少しドラマチックに */
+      text-shadow: 0 2px 8px rgba(0,0,0,0.6);
+    }
+    .title-screen__subtitle {
+      font-size: 12.5px;
+      text-align: center;
+      color: var(--color-text-muted);
+      letter-spacing: 0.06em;
+      line-height: 1.6;
+      margin-top: -8px;
+    }
+    .title-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .title-section__label {
+      font-size: 11px;
+      letter-spacing: 0.1em;
+      color: var(--color-text-muted);
+      text-transform: uppercase;
+    }
+    .title-gender {
+      display: flex;
+      gap: 8px;
+    }
+    .title-gender__btn {
+      flex: 1;
+      min-height: 48px;
+      padding: 10px 8px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: var(--radius-button);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-size: 14px;
+      letter-spacing: 0.04em;
+      transition: background-color 160ms ease, border-color 160ms ease;
+    }
+    .title-gender__btn:active { background: var(--color-surface-2); }
+    .title-gender__btn.is-active {
+      background: var(--color-accent-dim);
+      color: #1a120c;
+      border-color: var(--color-accent);
+      font-weight: 600;
+    }
+    .title-name__input {
+      width: 100%;
+      min-height: 44px;
+      padding: 10px 12px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: var(--radius-button);
+      font: inherit;
+      font-size: 14.5px;
+      outline: none;
+    }
+    .title-name__input:focus {
+      border-color: var(--color-accent-dim);
+    }
+    .title-name__hint {
+      font-size: 11px;
+      color: var(--color-text-muted);
+      margin-top: 2px;
+    }
+    .title-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .title-action-btn {
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 14px;
+      border-radius: var(--radius-button);
+      font-size: 15px;
+      letter-spacing: 0.06em;
+      text-align: center;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .title-action-btn:active { background: var(--color-surface-2); }
+    .title-action-btn--primary {
+      background: var(--color-accent-dim);
+      color: #1a120c;
+      font-weight: 700;
+      border-color: transparent;
+    }
+    .title-action-btn--primary:active { background: var(--color-accent); }
+    .title-action-btn[disabled] {
+      opacity: 0.45;
+      pointer-events: none;
+    }
+    .title-foot {
+      margin-top: 18px;
+      text-align: center;
+      font-size: 10.5px;
+      color: var(--color-text-muted);
+      letter-spacing: 0.08em;
+    }
+
+    /* タイトル表示中はメインアプリを隠す
+       （boot 時に .app に .is-hidden を付ける） */
+    .app.is-hidden { display: none; }
   </style>
 </head>
 <body>
+  <!--
+    タイトル画面（Phase 4 / #29）
+    起動時に表示。性別・名前を選択して「はじめる」で SceneEngine を起動。
+    保存済みデータがある場合は「続きから」で復帰。
+  -->
+  <div class="title-screen" id="title-screen" aria-hidden="true">
+    <div class="title-screen__panel">
+      <div class="title-screen__title">マッチしたのは、誰？</div>
+      <div class="title-screen__subtitle">——あの人の好意は、本物だったのか。</div>
+
+      <div class="title-section">
+        <div class="title-section__label">主人公の性別</div>
+        <div class="title-gender" role="radiogroup" aria-label="主人公の性別">
+          <button class="title-gender__btn is-active" type="button" data-gender="female" role="radio" aria-checked="true">女性</button>
+          <button class="title-gender__btn" type="button" data-gender="male" role="radio" aria-checked="false">男性</button>
+        </div>
+      </div>
+
+      <div class="title-section">
+        <div class="title-section__label">名前（任意）</div>
+        <input
+          class="title-name__input"
+          id="title-name-input"
+          type="text"
+          inputmode="text"
+          maxlength="12"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="美咲"
+          aria-label="主人公の名前"
+        />
+        <div class="title-name__hint" id="title-name-hint">未入力ならデフォルト名「美咲」が使われます。</div>
+      </div>
+
+      <div class="title-actions">
+        <button class="title-action-btn title-action-btn--primary" type="button" id="title-start">はじめる</button>
+        <button class="title-action-btn" type="button" id="title-continue" disabled>続きから</button>
+      </div>
+
+      <div class="title-foot">© Whos-Matching</div>
+    </div>
+  </div>
+
   <!--
     ゲーム本体のルート。
     4エリア構成（仕様: ui-spec.md の「画面レイアウト」）:
@@ -472,9 +811,9 @@
       2. <main>    チャット表示エリア（タイピング演出 + タップ進行）
       3. <section> 選択肢エリア（最大4択、AUTO 強制停止）
       4. <footer>  コントロールバー（AUTO / SKIP / LOG / MENU）
-    Phase 2 で UI 実装済み。シナリオデータは Phase 3 で本番版に差し替え予定。
+    Phase 2 で UI 実装済み。Phase 3 で本番シナリオ、Phase 4 で仕上げ。
   -->
-  <div class="app" id="app">
+  <div class="app is-hidden" id="app">
 
     <header class="app-header">
       <!--
@@ -1095,13 +1434,15 @@
       /* ============= Chapter1 ============= */
 
       // Scene1 通勤電車：マッチングアプリで同じ会社の人を発見
+      // image: 'opposite-profile' は GameState.protagonist.gender に応じて
+      // profile-male / profile-female を反転表示する論理キー（UI側で解決）。
       'ch1-scene1': {
         id: 'ch1-scene1',
         type: 'choice',
         messages: [
           { speaker: 'narration',   text: '朝の満員電車。今日も少し疲れている。', effect: 1, tone: 'warm' },
-          { speaker: 'narration',   text: '何気なくマッチングアプリを開く。', effect: 1, tone: 'warm' },
-          { speaker: 'protagonist', text: '（…あれ、この人。）', effect: 1 },
+          { speaker: 'narration',   text: '何気なくマッチングアプリを開く。', effect: 1, tone: 'warm', image: 'chat-mood' },
+          { speaker: 'protagonist', text: '（…あれ、この人。）', effect: 1, image: 'opposite-profile' },
           { speaker: 'protagonist', text: '（同じ会社の人だ。別部署、だけど。）', effect: 1 },
           { speaker: 'narration',   text: 'プロフィールは穏やかで、感じがいい。', effect: 1, tone: 'warm' },
         ],
@@ -1152,7 +1493,7 @@
         id: 'ch1-scene4',
         type: 'choice',
         messages: [
-          { speaker: 'narration', text: '週末。待ち合わせの30分前。', effect: 1, tone: 'warm' },
+          { speaker: 'narration', text: '週末。待ち合わせの30分前。', effect: 1, tone: 'warm', image: 'cafe' },
           { speaker: 'partner',   text: '今、駅に着きました。', effect: 1 },
           { speaker: 'partner',   text: '正直、今日は来るか迷ってたんですよね。', effect: 1 },
           { speaker: 'partner',   text: '最近ちょっと、仕事が立て込んでて。', effect: 1 },
@@ -1235,27 +1576,28 @@
         id: 'ch1-scene9',
         type: 'forced',
         messages: [
-          { speaker: 'narration',   text: '夜道。タクシーの窓に街灯が流れる。', effect: 2 },
+          { speaker: 'narration',   text: '夜道。タクシーの窓に街灯が流れる。', effect: 2, image: 'taxi' },
           { speaker: 'partner',     text: 'すぐ着きます。少し奥なんですけど。', effect: 2 },
           { speaker: 'protagonist', text: '（……住所、ちゃんと聞いてなかった気がする。）', effect: 2 },
-          { speaker: 'partner',     text: '運転手さん、その先の路地、左で。', effect: 2 },
-          { speaker: 'narration',   text: 'ナビは点いていない。', effect: 2 },
+          { speaker: 'partner',     text: '運転手さん、その先の路地、左で。', effect: 2, image: 'street-night' },
+          { speaker: 'narration',   text: 'ナビは点いていない。', effect: 2, image: 'suburb' },
         ],
         next: 'ch1-scene10',
       },
 
       // Scene10 玄関：表示上の3択 / 実際は強制進行（スタンガン → blackout）
       // 末尾で transitionToChapter2() を呼んで Chapter2 へ。
+      // entrance: true のメッセージは UI 側で「玄関演出」（暗転・間が伸びる・彩度低下）を発動。
       'ch1-scene10': {
         id: 'ch1-scene10',
         type: 'choice',
         messages: [
-          { speaker: 'narration',   text: 'マンションの一室。ドアが静かに開く。', effect: 2 },
-          { speaker: 'narration',   text: '……空気が、冷たい。', effect: 2 },
-          { speaker: 'narration',   text: '足音が、廊下に吸い込まれて消える。', effect: 2 },
-          { speaker: 'protagonist', text: '（——あれ。）', effect: 2 },
-          { speaker: 'protagonist', text: '（昼間のチャット。「対応済みです」って、誰が？）', effect: 2 },
-          { speaker: 'partner',     text: 'どうぞ。奥です。', effect: 2 },
+          { speaker: 'narration',   text: 'マンションの一室。ドアが静かに開く。', effect: 2, entrance: true, image: 'door' },
+          { speaker: 'narration',   text: '……空気が、冷たい。', effect: 2, entrance: true },
+          { speaker: 'narration',   text: '足音が、廊下に吸い込まれて消える。', effect: 2, entrance: true },
+          { speaker: 'protagonist', text: '（——あれ。）', effect: 2, entrance: true },
+          { speaker: 'protagonist', text: '（昼間のチャット。「対応済みです」って、誰が？）', effect: 2, entrance: true },
+          { speaker: 'partner',     text: 'どうぞ。奥です。', effect: 2, entrance: true },
         ],
         // 表示上は3択あるが、いずれを選んでも 'ch1-scene10-blackout' に進む（仕様準拠）
         choices: [
@@ -1266,13 +1608,14 @@
       },
 
       // Scene10 結末：強制イベント（スタンガン → blackout） → Chapter2 へ変換
+      // flash: true のメッセージは UI 側で「フラッシュ演出」（白点滅）を発動。
       'ch1-scene10-blackout': {
         id: 'ch1-scene10-blackout',
         type: 'forced',
         messages: [
           { speaker: 'narration', text: '——背後で、何かが鳴った。', effect: 3 },
           { speaker: 'narration', text: '体が動かない。', effect: 3 },
-          { speaker: 'narration', text: '視界が、白く弾ける。', effect: 3 },
+          { speaker: 'narration', text: '視界が、白く弾ける。', effect: 3, flash: true },
           { speaker: 'narration', text: '………', effect: 3 },
         ],
         // Chapter2 突入直前にフラグ→内部変数を変換
@@ -1297,7 +1640,7 @@
         id: 'ch2-scene11',
         type: 'choice',
         messages: [
-          { speaker: 'narration',   text: '——意識が、戻る。', effect: 3 },
+          { speaker: 'narration',   text: '——意識が、戻る。', effect: 3, image: 'blurred-vision' },
           { speaker: 'narration',   text: '頬に、固い木の感触。', effect: 3 },
           { speaker: 'protagonist', text: '（……ここ、どこ。）', effect: 3 },
           { speaker: 'protagonist', text: '（手が、動かない。）', effect: 3 },
@@ -1310,13 +1653,14 @@
       },
 
       // Scene12 部屋の認識：見られていたのは自分
+      // 「私だ」は性別中立な「自分だ」に置換（{私}プレースホルダで管理）。
       'ch2-scene12': {
         id: 'ch2-scene12',
         type: 'choice',
         messages: [
-          { speaker: 'narration',   text: '壁に、写真が貼られている。', effect: 3 },
+          { speaker: 'narration',   text: '壁に、写真が貼られている。', effect: 3, image: 'wall-photos' },
           { speaker: 'narration',   text: '何枚も、何枚も。', effect: 3 },
-          { speaker: 'protagonist', text: '（——これ、私だ。）', effect: 3 },
+          { speaker: 'protagonist', text: '（——これ、{私}だ。）', effect: 3 },
           { speaker: 'protagonist', text: '（朝の電車。会社のエントランス。先週のカフェ。）', effect: 3 },
           { speaker: 'narration',   text: '机の上には、起動したままのPC。', effect: 3 },
         ],
@@ -1404,7 +1748,7 @@
         // ここでは共通の導入メッセージを表示し、次を Risk で分岐。
         messages: [
           { speaker: 'narration', text: '遠くで、サイレンの音。', effect: 3 },
-          { speaker: 'narration', text: '部屋の隅、つけっぱなしのテレビ。', effect: 3 },
+          { speaker: 'narration', text: '部屋の隅、つけっぱなしのテレビ。', effect: 3, image: 'tv-news' },
         ],
         next: function (state) {
           const risk = state.get('Risk');
@@ -1418,7 +1762,7 @@
         id: 'ch2-scene17-tvon',
         type: 'forced',
         messages: [
-          { speaker: 'narration', text: 'テレビが、ふいに音を上げる。', effect: 3 },
+          { speaker: 'narration', text: 'テレビが、ふいに音を上げる。', effect: 3, image: 'tv-news' },
           { speaker: 'narration', text: '——速報。市内で、行方不明者の遺体が発見されました。', effect: 3 },
           { speaker: 'narration', text: '——現場は、住宅街の一室。', effect: 3 },
           { speaker: 'partner',   text: 'ああ。これ、近所だね。', effect: 3 },
@@ -1535,6 +1879,88 @@
     };
 
     NS.ALL_SCENES = ALL_SCENES;
+
+    /* ===============================================================
+     * Phase 4 追加ユーティリティ
+     * ---------------------------------------------------------------
+     * - 画像カテゴリ → SVG ファイルパス解決
+     * - 主人公性別に応じた相手プロフィール反転
+     * - 代名詞プレースホルダ置換（{彼}/{彼女}/{相手}/{私}/{主人公名}）
+     * =============================================================== */
+
+    // 画像カテゴリ → assets/images/*.svg のマップ。
+    // 'opposite-profile' は性別反転で profile-male/female を返す論理キー。
+    // 仕様: docs/image-prompts.md の各カテゴリに対応。
+    const IMAGE_MAP = Object.freeze({
+      'profile-male':    'assets/images/profile-male.svg',
+      'profile-female':  'assets/images/profile-female.svg',
+      'cafe':            'assets/images/cafe.svg',
+      'chat-mood':       'assets/images/chat-mood.svg',
+      'street-night':    'assets/images/street-night.svg',
+      'taxi':            'assets/images/taxi.svg',
+      'suburb':          'assets/images/suburb.svg',
+      'door':            'assets/images/door.svg',
+      'wall-photos':     'assets/images/wall-photos.svg',
+      'blurred-vision':  'assets/images/blurred-vision.svg',
+      'tv-news':         'assets/images/tv-news.svg',
+    });
+    NS.IMAGE_MAP = IMAGE_MAP;
+
+    /**
+     * 主人公性別に応じた「相手のプロフィール画像カテゴリ」を返す。
+     * 仕様: character-spec.md「主人公の性別に応じて変化（基本は異性）」
+     *   主人公=女性 → 相手=男性 → 'profile-male'
+     *   主人公=男性 → 相手=女性 → 'profile-female'
+     */
+    function getOppositeProfile(state) {
+      const p = state.get('protagonist') || {};
+      return p.gender === 'male' ? 'profile-female' : 'profile-male';
+    }
+    NS.getOppositeProfile = getOppositeProfile;
+
+    /**
+     * 画像カテゴリ → SVG ファイルパスへ解決。
+     * 'opposite-profile' は性別を見て反転、未知のキーは null。
+     */
+    function resolveImagePath(imageKey, state) {
+      if (!imageKey) return null;
+      let key = imageKey;
+      if (key === 'opposite-profile') key = getOppositeProfile(state);
+      return IMAGE_MAP[key] || null;
+    }
+    NS.resolveImagePath = resolveImagePath;
+
+    /**
+     * メッセージテキスト中のプレースホルダを置換する。
+     * 仕様: 「内面・性格・行動特性は性別を問わず共通」を維持しつつ、
+     *       表現上の代名詞だけを切替える（最小限の介入）。
+     *
+     * 置換ルール:
+     *   {主人公名} → 主人公の名前
+     *   {相手}    → 相手（性別中立な表現として「相手」固定。表現の一貫性のため）
+     *   {彼}      → 主人公=女性 → 「彼」（相手）／主人公=男性 → 「彼女」（相手）
+     *   {彼女}    → 主人公=女性 → 「彼女」（自分側）／主人公=男性 → 「彼」（自分側）
+     *   {私}      → 主人公=女性 → 「私」／主人公=男性 → 「俺」
+     *
+     * メモ: シナリオ本文では極力プレースホルダを使わず、必要な箇所のみ置換。
+     */
+    function applyPronouns(text, state) {
+      if (!text || text.indexOf('{') === -1) return text;
+      const p = state.get('protagonist') || { gender: 'female', name: '美咲' };
+      const isFemale = p.gender !== 'male';
+      const name = p.name || (isFemale ? '美咲' : '拓海');
+      // 「相手側の三人称」と「主人公の一人称」の両軸を切替える
+      const otherPronoun = isFemale ? '彼'   : '彼女';
+      const selfPronoun  = isFemale ? '彼女' : '彼';
+      const myWord       = isFemale ? '私'   : '俺';
+      return text
+        .replace(/\{主人公名\}/g, name)
+        .replace(/\{相手\}/g, '相手')
+        .replace(/\{彼\}/g, otherPronoun)
+        .replace(/\{彼女\}/g, selfPronoun)
+        .replace(/\{私\}/g, myWord);
+    }
+    NS.applyPronouns = applyPronouns;
 
     /* ===============================================================
      * UI（Phase 2: チャットUI / AUTO / SKIP / LOG / MENU 実装）
@@ -1760,10 +2186,92 @@
       }
 
       /* ---------------------------------------------------------------
+       * Phase 4: 演出クラスの切替・フラッシュ・画像差し込み
+       *
+       * applyEffectClass(level):
+       *   <body> に .effect-lv-1 / -2 / -3 を排他で付ける。
+       *   .effect-entrance は entrance:true メッセージ間だけ追加され、
+       *   次の effect 切替時に自動で外される。
+       *
+       * triggerFlash():
+       *   スタンガンや暴れ時の白フラッシュ。CSS animation で 900ms。
+       *
+       * renderSceneImage(imageKey):
+       *   チャットエリアに <object data=...svg> を差し込む。
+       *   フェード演出を伴う。失敗時は何も出さない（壊さない）。
+       * --------------------------------------------------------------- */
+      function applyEffectClass(level) {
+        const body = document.body;
+        // 既存の effect-lv-* と effect-entrance を一旦掃除。
+        // entrance は同じ effect レベルでも持続させたい場合があるが、
+        // 仕様上 Scene10 の messages 内で完結するので毎メッセージ再評価でよい。
+        body.classList.remove('effect-lv-1', 'effect-lv-2', 'effect-lv-3', 'effect-entrance');
+        const lv = (level === 2 || level === 3) ? level : 1;
+        body.classList.add('effect-lv-' + lv);
+      }
+
+      function triggerFlash() {
+        // 既存のフラッシュ要素が残っていれば削除してから差し直す。
+        const old = document.querySelector('.effect-flash');
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+        const el = document.createElement('div');
+        el.className = 'effect-flash';
+        document.body.appendChild(el);
+        // animation-fill-mode:forwards で見た目は残るが、DOMは1秒後に掃除。
+        setTimeout(() => {
+          if (el.parentNode) el.parentNode.removeChild(el);
+        }, 1000);
+      }
+
+      function renderSceneImage(imageKey) {
+        const path = resolveImagePath(imageKey, GameState);
+        if (!path) return;
+        const wrap = document.createElement('div');
+        wrap.className = 'scene-image';
+        // <object> を使うと SVG が DOM として評価され、フィルタや
+        // CSS の影響を受けやすい。<img> でも可だが <object> を選択。
+        const obj = document.createElement('object');
+        obj.setAttribute('type', 'image/svg+xml');
+        obj.setAttribute('data', path);
+        obj.setAttribute('aria-label', imageKey);
+        // 失敗時は wrap を消す（壊れた枠を残さない）
+        obj.addEventListener('error', () => {
+          if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+        });
+        wrap.appendChild(obj);
+        $chat.appendChild(wrap);
+        scrollChatToBottom();
+      }
+
+      /* ---------------------------------------------------------------
        * メッセージ描画（タイピング演出）
+       *
+       * Phase 4 追加:
+       *  - message.image があれば吹き出しの直前に画像エリアを差し込む
+       *    （SVG ファイルを <object> で読み込み、見つからなければ非表示）
+       *  - message.entrance / message.flash / message.effect で演出を切替
+       *  - text 中の {彼}{彼女}{相手}{私}{主人公名} を主人公性別に応じて置換
        * --------------------------------------------------------------- */
       function renderMessage(message, onDone) {
-        // 行コンテナ + バブル生成
+        // ---- 演出制御 -------------------------------------------------
+        // effect レベルを <body> クラスに反映（Lv1〜3）。
+        // 既存クラスを掃除してから新しい1つだけ付与する。
+        applyEffectClass(message.effect || 1);
+        // 玄関演出（Scene10）は entrance: true で発動。effect クラスに上乗せ。
+        if (message.entrance) {
+          document.body.classList.add('effect-entrance');
+        }
+        // フラッシュ演出（スタンガン等）は一時的なオーバーレイ。
+        if (message.flash) {
+          triggerFlash();
+        }
+
+        // ---- 画像差し込み ---------------------------------------------
+        if (message.image) {
+          renderSceneImage(message.image);
+        }
+
+        // ---- 行コンテナ + バブル生成 ----------------------------------
         const row = document.createElement('div');
         row.className = 'msg msg--' + message.speaker;
         const bubble = document.createElement('div');
@@ -1772,7 +2280,10 @@
         $chat.appendChild(row);
         scrollChatToBottom();
 
-        const text = String(message.text || '');
+        // ---- テキスト確定（プレースホルダ置換） -----------------------
+        // 表示前に { 彼 } などを置換しておく（タイピング途中の置換は不安定なため）。
+        const rawText = String(message.text || '');
+        const text = applyPronouns(rawText, GameState);
         const speed = computeTypingSpeed(message);
 
         let i = 0;
@@ -2196,25 +2707,179 @@
         });
       }
 
+      /* ---------------------------------------------------------------
+       * 外部から状態を初期化する API（タイトル「最初から」用）
+       * UI 内部の cursor/timer をクリアした上で SceneEngine.start を呼ぶ。
+       * --------------------------------------------------------------- */
+      function resetUIState() {
+        $chat.innerHTML = '';
+        clearChoices();
+        ui.waiting = false;
+        ui.pendingChoices = false;
+        ui.pendingForced = false;
+        ui.typing = false;
+        if (ui.typingTimer) { clearTimeout(ui.typingTimer); ui.typingTimer = null; }
+        clearAutoTimer();
+        // 演出クラスもクリア
+        document.body.classList.remove('effect-lv-1', 'effect-lv-2', 'effect-lv-3', 'effect-entrance');
+      }
+
       function boot() {
         bindGlobal();
         bindMenu();
         bindEngine();
         // 初期 AUTO 状態を反映（OFF）
         setAutoMode(false);
-        // 本番シナリオをロードして開始
+        // 本番シナリオをロードしておく（タイトル画面から起動される）
         SceneEngine.loadScenes(ALL_SCENES);
-        SceneEngine.start('ch1-scene1');
       }
 
-      return { boot };
+      return {
+        boot,
+        resetUIState,
+        // タイトル画面から呼ばれる「ゲーム開始」エントリ
+        startScene: (sceneId) => SceneEngine.start(sceneId),
+      };
     })();
 
     NS.UI = UI;
 
+    /* ===============================================================
+     * TitleScreen（Phase 4 / #29）
+     * ---------------------------------------------------------------
+     * 仕様: docs/character-spec.md「主人公性別オプション」
+     *
+     * - 起動時に表示。性別選択 + 名前入力 + はじめる/続きから。
+     * - 「はじめる」: GameState.reset() → protagonist 設定 → ch1-scene1
+     * - 「続きから」: GameState.load() に成功 → 保存済み sceneId から再開
+     * - タイトル画面はゲーム本体（.app）と排他で表示（display: none/flex）。
+     * =============================================================== */
+    const TitleScreen = (function () {
+      // DOM への参照は bind() で遅延取得する（DOMContentLoaded 後の起動を保証）。
+      let $title, $app, $name, $hint, $start, $cont, $genderBtns;
+
+      // 選択中の性別を保持（初期値: female）
+      let selectedGender = 'female';
+
+      function defaultName() {
+        return selectedGender === 'male' ? '拓海' : '美咲';
+      }
+
+      function updateNameUi() {
+        // 名前入力のプレースホルダとヒントをデフォルト名に追従させる
+        $name.placeholder = defaultName();
+        $hint.textContent = '未入力ならデフォルト名「' + defaultName() + '」が使われます。';
+      }
+
+      function setGender(g) {
+        if (g !== 'male' && g !== 'female') return;
+        selectedGender = g;
+        $genderBtns.forEach((b) => {
+          const on = b.dataset.gender === g;
+          b.classList.toggle('is-active', on);
+          b.setAttribute('aria-checked', on ? 'true' : 'false');
+        });
+        updateNameUi();
+      }
+
+      function show() {
+        $title.classList.add('is-open');
+        $title.setAttribute('aria-hidden', 'false');
+        $app.classList.add('is-hidden');
+        // 「続きから」は LocalStorage に sceneId が保存されている場合のみ有効
+        const hasSave = checkSavedScene();
+        $cont.disabled = !hasSave;
+      }
+
+      function hide() {
+        $title.classList.remove('is-open');
+        $title.setAttribute('aria-hidden', 'true');
+        $app.classList.remove('is-hidden');
+      }
+
+      function checkSavedScene() {
+        // GameState.load() を試して、有効なシーンIDがあれば true。
+        // 副作用として state にロードされる（はじめる側で reset するので問題なし）。
+        try {
+          const raw = localStorage.getItem(GameState.STORAGE_KEY);
+          if (!raw) return false;
+          const parsed = JSON.parse(raw);
+          return !!(parsed && typeof parsed.sceneId === 'string' && parsed.sceneId);
+        } catch (_) {
+          return false;
+        }
+      }
+
+      function applyProtagonistFromInput() {
+        const name = ($name.value || '').trim() || defaultName();
+        // GameState.set('protagonist', ...) で protagonist 全体を差し替え
+        GameState.set('protagonist', { gender: selectedGender, name: name });
+      }
+
+      function startNewGame() {
+        // 既存セーブを破棄して、選択した性別・名前で開始
+        GameState.reset();
+        applyProtagonistFromInput();
+        // UI内部状態もクリア
+        UI.resetUIState();
+        hide();
+        UI.startScene('ch1-scene1');
+      }
+
+      function continueGame() {
+        const ok = GameState.load();
+        if (!ok) {
+          // 念のためフォールバック: 続きが無ければ新規扱い
+          startNewGame();
+          return;
+        }
+        // 保存された性別を選択UIにも反映（次回タイトル表示時の見た目整合）
+        const p = GameState.get('protagonist') || {};
+        if (p.gender) setGender(p.gender);
+        UI.resetUIState();
+        hide();
+        const sceneId = GameState.get('sceneId') || 'ch1-scene1';
+        UI.startScene(sceneId);
+      }
+
+      function bind() {
+        // DOMContentLoaded 後に呼ばれる前提でここで DOM を取得
+        $title = document.getElementById('title-screen');
+        $app   = document.getElementById('app');
+        $name  = document.getElementById('title-name-input');
+        $hint  = document.getElementById('title-name-hint');
+        $start = document.getElementById('title-start');
+        $cont  = document.getElementById('title-continue');
+        $genderBtns = $title.querySelectorAll('.title-gender__btn');
+
+        $genderBtns.forEach((b) => {
+          b.addEventListener('click', () => setGender(b.dataset.gender));
+        });
+        $start.addEventListener('click', startNewGame);
+        $cont.addEventListener('click', () => {
+          if ($cont.disabled) return;
+          continueGame();
+        });
+        // Enter キーで「はじめる」を発火（PCでも遊びやすく）
+        $name.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            startNewGame();
+          }
+        });
+        updateNameUi();
+      }
+
+      return { bind, show, hide };
+    })();
+
+    NS.TitleScreen = TitleScreen;
+
     // DOM 構築後に起動
     document.addEventListener('DOMContentLoaded', () => {
       UI.boot();
+      TitleScreen.bind();
+      TitleScreen.show();
     });
 
   })(window);

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  壁の写真（拘束後）— 監視の証拠
+  仕様: image-prompts.md「写真（監視の証拠）」
+  - 暗い壁にぼんやりと貼られた写真群
+  - 写真の中身（顔）は見せない（黒〜灰色のシルエット程度）
+  - 不気味さは「数」と「並び方」で出す
+  Scene12 用。
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" role="img" aria-label="暗い壁に貼られた複数の写真">
+  <defs>
+    <linearGradient id="bgWall" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#0a0a0c"/>
+      <stop offset="1" stop-color="#06060a"/>
+    </linearGradient>
+    <radialGradient id="wallGlow" cx="0.5" cy="0.5" r="0.7">
+      <stop offset="0" stop-color="#1a1d22" stop-opacity="0.7"/>
+      <stop offset="1" stop-color="#0a0a0c" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="320" height="200" fill="url(#bgWall)"/>
+  <rect width="320" height="200" fill="url(#wallGlow)"/>
+
+  <!-- 壁紙のかすかな質感 -->
+  <line x1="0" y1="50" x2="320" y2="48" stroke="#15181c" stroke-width="0.5" opacity="0.4"/>
+  <line x1="0" y1="120" x2="320" y2="122" stroke="#15181c" stroke-width="0.5" opacity="0.3"/>
+
+  <!--
+    写真群: 各写真は中身を描かない（黒系の塗りつぶし）。
+    「監視されていた」恐怖を「数の多さ」と「ランダムな配置」で表現。
+  -->
+  <g opacity="0.85">
+    <!-- 行1 -->
+    <g transform="translate(20, 20) rotate(-3)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <!-- ぼんやりとした人影（顔は描かない） -->
+      <ellipse cx="20" cy="22" rx="6" ry="4" fill="#2a2e34" opacity="0.6"/>
+    </g>
+    <g transform="translate(75, 30) rotate(2)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="20" cy="20" rx="5" ry="3.5" fill="#2a2e34" opacity="0.5"/>
+    </g>
+    <g transform="translate(135, 18) rotate(-1)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="22" cy="22" rx="5" ry="4" fill="#2a2e34" opacity="0.55"/>
+    </g>
+    <g transform="translate(195, 28) rotate(4)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="20" cy="22" rx="6" ry="4" fill="#2a2e34" opacity="0.5"/>
+    </g>
+    <g transform="translate(255, 22) rotate(-2)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="22" cy="20" rx="5" ry="4" fill="#2a2e34" opacity="0.5"/>
+    </g>
+
+    <!-- 行2 -->
+    <g transform="translate(40, 95) rotate(3)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="20" cy="22" rx="5" ry="4" fill="#2a2e34" opacity="0.5"/>
+    </g>
+    <g transform="translate(105, 105) rotate(-4)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="20" cy="22" rx="6" ry="4" fill="#2a2e34" opacity="0.55"/>
+    </g>
+    <g transform="translate(170, 100) rotate(2)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="22" cy="22" rx="5" ry="4" fill="#2a2e34" opacity="0.5"/>
+    </g>
+    <g transform="translate(230, 110) rotate(-1)">
+      <rect width="40" height="52" fill="#1a1d22" stroke="#2a2e34" stroke-width="0.5"/>
+      <rect x="3" y="3" width="34" height="38" fill="#0a0c10"/>
+      <ellipse cx="20" cy="20" rx="5" ry="3.5" fill="#2a2e34" opacity="0.5"/>
+    </g>
+  </g>
+
+  <!-- ピン（押しピン）の小さな点 -->
+  <circle cx="40" cy="22" r="1" fill="#5a3a26" opacity="0.7"/>
+  <circle cx="155" cy="20" r="1" fill="#5a3a26" opacity="0.7"/>
+  <circle cx="275" cy="24" r="1" fill="#5a3a26" opacity="0.7"/>
+
+  <!-- 全体に冷気・暗さを乗せる -->
+  <rect width="320" height="200" fill="#000" opacity="0.25"/>
+</svg>

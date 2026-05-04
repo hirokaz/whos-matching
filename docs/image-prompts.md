@@ -6,7 +6,9 @@
 
 ## ■ 基本方針
 
-- フル顔は見せない（没入維持）
+- **フル顔は全フェーズ通じて見せない**（没入維持・絶対ルール）
+  - 横顔・斜め・視線外し・手元・シルエット中心
+  - `ui-spec.md`「前半:見せる／中盤:ぼかす／後半:見せない」の「見せる」もフル顔は対象外
 - 実写風・自然光・日本の都市感
 - 前半：暖かい / 後半：冷たい
 - 過剰な演出NG（リアル重視）
@@ -19,12 +21,22 @@
 
 「惹かれる相手」を作る
 
+### ■ 使い分け
+
+主人公の性別オプション（`character-spec.md` 参照）に応じて切り替える。
+
+- 主人公が女性 → 男性プロンプトを使用（デフォルト）
+- 主人公が男性 → 女性プロンプトを使用
+- 同性パターン → 主人公と同性のプロンプトを使用
+
+**いずれの場合もフル顔は避ける**（横顔・斜め・視線外し）。
+
 ---
 
 ### ■ プロンプト（男性）
 
 ```
-Japanese man, late 20s to early 30s, clean and neat appearance, soft natural smile, business casual outfit, indoor natural light, shallow depth of field, slightly looking away from camera, calm and intelligent vibe, realistic photography, minimal background, high detail
+Japanese man, late 20s to early 30s, clean and neat appearance, soft natural smile, business casual outfit, indoor natural light, shallow depth of field, slightly looking away from camera, calm and intelligent vibe, realistic photography, minimal background, high detail, face partially obscured or turned away
 ```
 
 ---
@@ -32,7 +44,7 @@ Japanese man, late 20s to early 30s, clean and neat appearance, soft natural smi
 ### ■ プロンプト（女性）
 
 ```
-Japanese woman, late 20s to early 30s, natural makeup, soft gentle smile, casual elegant outfit, indoor natural light, slightly looking sideways, calm and approachable, realistic photography, shallow depth of field, minimal background
+Japanese woman, late 20s to early 30s, natural makeup, soft gentle smile, casual elegant outfit, indoor natural light, slightly looking sideways, calm and approachable, realistic photography, shallow depth of field, minimal background, face partially obscured or turned away
 ```
 
 ---
@@ -43,6 +55,7 @@ Japanese woman, late 20s to early 30s, natural makeup, soft gentle smile, casual
 - cinematic horror
 - exaggerated emotion
 - anime style
+- direct frontal face shot（フル顔の正面ショット）
 
 ---
 
@@ -51,6 +64,10 @@ Japanese woman, late 20s to early 30s, natural makeup, soft gentle smile, casual
 ### ■ 目的
 
 距離感・親密さ・安心感
+
+### ■ 使用シーン
+
+`scenario-game-spec.md` の Scene4〜5（デート前・デート）。**仕事終わり〜夜の時間帯を想定**。
 
 ---
 

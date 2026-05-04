@@ -94,19 +94,68 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 12px;
+      padding: 0 8px 0 12px;
       background: var(--color-bg-elev);
       border-bottom: 1px solid rgba(255,255,255,0.04);
+      gap: 8px;
+    }
+    /* タイトル + 進行を縦に積んでヘッダーを薄く保つ */
+    .app-header__meta {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0; /* ellipsis を効かせるため */
+      flex: 1 1 auto;
     }
     .app-header__title {
-      font-size: 14px;
+      font-size: 13px;
       font-weight: 600;
       letter-spacing: 0.02em;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .app-header__progress {
-      font-size: 11px;
+      font-size: 10.5px;
       color: var(--color-text-muted);
       font-variant-numeric: tabular-nums;
+      line-height: 1.2;
+      margin-top: 2px;
+    }
+    /* AUTO トグル: 親指届きやすいよう右上、44px 確保 */
+    .app-header__auto {
+      flex: 0 0 auto;
+      min-width: 56px;
+      min-height: 36px;
+      padding: 6px 10px;
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--color-text-dim);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+    }
+    .app-header__auto::before {
+      /* ON/OFF を視覚化する小さなインジケータ */
+      content: '';
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--color-text-muted);
+      transition: background-color 120ms ease, box-shadow 120ms ease;
+    }
+    .app-header__auto.is-on {
+      color: var(--color-accent);
+      border-color: var(--color-accent-dim);
+      background: rgba(232,160,100,0.08);
+    }
+    .app-header__auto.is-on::before {
+      background: var(--color-accent);
+      box-shadow: 0 0 6px rgba(232,160,100,0.7);
     }
 
     /* メイン（チャット） --------------------------------------- */
@@ -119,6 +168,22 @@
       padding: 12px 12px 8px;
       /* スマホでの慣性スクロール */
       -webkit-overflow-scrolling: touch;
+      /* タップで進行させるため、テキスト選択をデフォルト無効化（長押しでログ等を妨げない範囲で） */
+      -webkit-user-select: none;
+      user-select: none;
+      cursor: pointer;
+    }
+    /* タイピング中のキャレット（疑似カーソル） */
+    .msg__bubble.is-typing::after {
+      content: '▍';
+      display: inline-block;
+      margin-left: 2px;
+      opacity: 0.5;
+      animation: caret-blink 900ms steps(2, end) infinite;
+    }
+    @keyframes caret-blink {
+      from { opacity: 0.6; }
+      to   { opacity: 0; }
     }
 
     /* チャット行（共通） */
@@ -183,6 +248,8 @@
     }
     .choice-btn {
       width: 100%;
+      /* min-height 44px: Apple HIG / Material のタップ目標サイズ最低基準 */
+      min-height: 44px;
       padding: 12px 14px;
       text-align: left;
       background: var(--color-surface);
@@ -190,7 +257,8 @@
       border-radius: var(--radius-button);
       border: 1px solid rgba(255,255,255,0.05);
       font-size: 14.5px;
-      transition: background-color 120ms ease, transform 80ms ease;
+      transition: background-color 160ms ease, border-color 160ms ease,
+                  transform 80ms ease, opacity 200ms ease;
     }
     .choice-btn:active {
       background: var(--color-surface-2);
@@ -206,6 +274,19 @@
     .choice-btn--accent:active {
       background: var(--color-accent);
     }
+    /* 選択直後の演出: 選んだボタンを強調 / 他をフェードアウト */
+    .choice-btn.is-selected {
+      background: var(--color-accent);
+      color: #1a120c;
+      border-color: var(--color-accent-strong);
+      font-weight: 600;
+    }
+    .choice-btn.is-dimmed {
+      opacity: 0.25;
+    }
+    .choice-btn[disabled] {
+      pointer-events: none;
+    }
 
     /* フッター（コントロール） --------------------------------- */
     .app-footer {
@@ -220,6 +301,8 @@
     }
     .ctrl-btn {
       flex: 1;
+      /* タップ目標サイズ確保（44x44 推奨）。フッター高 56 + padding で 44 を担保 */
+      min-height: 44px;
       padding: 8px 4px;
       font-size: 11px;
       letter-spacing: 0.06em;
@@ -227,7 +310,153 @@
       border-radius: 8px;
     }
     .ctrl-btn:active { background: var(--color-surface); }
-    .ctrl-btn--active { color: var(--color-accent); }
+    .ctrl-btn.is-active { color: var(--color-accent); }
+
+    /* =========================================================
+     * モーダル（LOG / MENU 共通）
+     * 仕様: ui-spec.md「コントロールバー: LOG / MENU」
+     * 全画面オーバーレイ + 中央パネル（max-width 抑制）。
+     * チャット領域だけ覆い、ヘッダー/フッターも遮るため fixed で全面に出す。
+     * ========================================================= */
+    .modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: stretch;
+      justify-content: center;
+      z-index: 100;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    }
+    .modal.is-open { display: flex; }
+    .modal__panel {
+      width: 100%;
+      max-width: var(--max-width);
+      background: var(--color-bg-elev);
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.05);
+    }
+    .modal__header {
+      flex: 0 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .modal__title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--color-text);
+    }
+    .modal__close {
+      min-width: 44px;
+      min-height: 44px;
+      padding: 8px 12px;
+      font-size: 18px;
+      color: var(--color-text-dim);
+      border-radius: 8px;
+    }
+    .modal__close:active { background: var(--color-surface); }
+    .modal__body {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 10px 12px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* LOGモーダル内の発話表示 */
+    .log-entry {
+      padding: 6px 0;
+      border-bottom: 1px dashed rgba(255,255,255,0.04);
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--color-text);
+    }
+    .log-entry__meta {
+      display: block;
+      font-size: 10px;
+      color: var(--color-text-muted);
+      letter-spacing: 0.06em;
+      margin-bottom: 2px;
+      text-transform: uppercase;
+    }
+    .log-entry--protagonist .log-entry__meta { color: var(--color-accent-dim); }
+    .log-entry--narration {
+      color: var(--color-narration);
+      font-style: italic;
+      text-align: center;
+    }
+    .log-entry--choice .log-entry__text {
+      color: var(--color-accent);
+      font-weight: 600;
+    }
+    .log-empty {
+      text-align: center;
+      color: var(--color-text-muted);
+      padding: 24px 0;
+      font-size: 13px;
+    }
+
+    /* MENU モーダル */
+    .menu-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .menu-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 14px;
+      background: var(--color-surface);
+      color: var(--color-text);
+      border-radius: var(--radius-button);
+      font-size: 14px;
+      text-align: left;
+      transition: background-color 120ms ease;
+    }
+    .menu-item:active { background: var(--color-surface-2); }
+    .menu-item__hint {
+      color: var(--color-text-muted);
+      font-size: 11px;
+    }
+    .menu-section-label {
+      font-size: 10.5px;
+      color: var(--color-text-muted);
+      letter-spacing: 0.08em;
+      margin: 12px 0 4px;
+      text-transform: uppercase;
+    }
+    /* AUTO 速度切替（セグメント） */
+    .speed-seg {
+      display: flex;
+      gap: 6px;
+    }
+    .speed-seg__btn {
+      flex: 1;
+      min-height: 44px;
+      padding: 8px 0;
+      background: var(--color-surface);
+      border: 1px solid rgba(255,255,255,0.05);
+      color: var(--color-text-dim);
+      border-radius: var(--radius-button);
+      font-size: 12px;
+      letter-spacing: 0.04em;
+    }
+    .speed-seg__btn.is-active {
+      background: var(--color-accent-dim);
+      color: #1a120c;
+      border-color: transparent;
+      font-weight: 600;
+    }
+    .speed-seg__btn:active { background: var(--color-surface-2); }
+    .speed-seg__btn.is-active:active { background: var(--color-accent); }
 
     /* 画面が縦に小さい時の調整（例: 横向き） */
     @media (orientation: landscape) and (max-height: 500px) {
@@ -239,17 +468,30 @@
   <!--
     ゲーム本体のルート。
     4エリア構成（仕様: ui-spec.md の「画面レイアウト」）:
-      1. <header>  ヘッダー
-      2. <main>    チャット表示エリア
-      3. <section> 選択肢エリア
-      4. <footer>  コントロールバー
-    Phase 1 ではプレースホルダ表示まで。UI実装は後続フェーズで行う。
+      1. <header>  ヘッダー（タイトル / 進行 / AUTO トグル）
+      2. <main>    チャット表示エリア（タイピング演出 + タップ進行）
+      3. <section> 選択肢エリア（最大4択、AUTO 強制停止）
+      4. <footer>  コントロールバー（AUTO / SKIP / LOG / MENU）
+    Phase 2 で UI 実装済み。シナリオデータは Phase 3 で本番版に差し替え予定。
   -->
   <div class="app" id="app">
 
     <header class="app-header">
-      <div class="app-header__title">マッチしたのは、誰？</div>
-      <div class="app-header__progress" id="header-progress">Ch.- / Scene -</div>
+      <!--
+        左側にタイトル＋進行を縦積み。スマホ縦持ちで上部スペースを節約しつつ、
+        右側に AUTO トグルを置いて親指で押しやすくする。
+      -->
+      <div class="app-header__meta">
+        <div class="app-header__title">マッチしたのは、誰？</div>
+        <div class="app-header__progress" id="header-progress">Ch.- / Scene -</div>
+      </div>
+      <button
+        class="app-header__auto"
+        type="button"
+        id="auto-toggle"
+        aria-pressed="false"
+        aria-label="AUTOモード切替"
+      >AUTO <span id="auto-toggle-state">OFF</span></button>
     </header>
 
     <main class="app-main" id="chat-area" aria-live="polite">
@@ -261,13 +503,65 @@
     </section>
 
     <footer class="app-footer">
-      <!-- Phase 1 ではボタンは見た目のみ（後続でハンドラを実装） -->
-      <button class="ctrl-btn" type="button" data-ctrl="auto">AUTO</button>
-      <button class="ctrl-btn" type="button" data-ctrl="skip">SKIP</button>
-      <button class="ctrl-btn" type="button" data-ctrl="log">LOG</button>
-      <button class="ctrl-btn" type="button" data-ctrl="menu">MENU</button>
+      <!--
+        4ボタン: AUTO / SKIP / LOG / MENU
+        AUTO はヘッダーのトグルと同期。SKIPは1メッセージ進行（タイピング即完了 or 次へ）。
+      -->
+      <button class="ctrl-btn" type="button" data-ctrl="auto" id="ctrl-auto">AUTO</button>
+      <button class="ctrl-btn" type="button" data-ctrl="skip" id="ctrl-skip">SKIP</button>
+      <button class="ctrl-btn" type="button" data-ctrl="log" id="ctrl-log">LOG</button>
+      <button class="ctrl-btn" type="button" data-ctrl="menu" id="ctrl-menu">MENU</button>
     </footer>
 
+  </div>
+
+  <!-- ===========================================================
+       LOG モーダル
+       過去の発話を時系列で振り返るためのオーバーレイ。
+       =========================================================== -->
+  <div class="modal" id="modal-log" aria-hidden="true" role="dialog" aria-labelledby="modal-log-title">
+    <div class="modal__panel">
+      <div class="modal__header">
+        <div class="modal__title" id="modal-log-title">LOG</div>
+        <button class="modal__close" type="button" data-modal-close="modal-log" aria-label="閉じる">×</button>
+      </div>
+      <div class="modal__body" id="modal-log-body">
+        <!-- ログエントリは動的生成 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ===========================================================
+       MENU モーダル
+       タイトルへ戻る / 最初から / AUTO速度設定。
+       =========================================================== -->
+  <div class="modal" id="modal-menu" aria-hidden="true" role="dialog" aria-labelledby="modal-menu-title">
+    <div class="modal__panel">
+      <div class="modal__header">
+        <div class="modal__title" id="modal-menu-title">MENU</div>
+        <button class="modal__close" type="button" data-modal-close="modal-menu" aria-label="閉じる">×</button>
+      </div>
+      <div class="modal__body">
+        <div class="menu-section-label">AUTO 速度</div>
+        <div class="speed-seg" id="menu-speed">
+          <button class="speed-seg__btn" type="button" data-speed="slow">低速</button>
+          <button class="speed-seg__btn" type="button" data-speed="normal">標準</button>
+          <button class="speed-seg__btn" type="button" data-speed="fast">高速</button>
+        </div>
+
+        <div class="menu-section-label">進行</div>
+        <div class="menu-list">
+          <button class="menu-item" type="button" data-menu="restart">
+            <span>最初から</span>
+            <span class="menu-item__hint">セーブを破棄して開始</span>
+          </button>
+          <button class="menu-item" type="button" data-menu="title">
+            <span>タイトルへ戻る</span>
+            <span class="menu-item__hint">画面を再読込</span>
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -730,78 +1024,583 @@
     NS.DEMO_SCENES = DEMO_SCENES;
 
     /* ===============================================================
-     * UI（Phase 1: 最低限の表示）
-     * 本格的なUI（タイプライタ表示・AUTO・SKIP・LOG・MENU）は Phase 2+。
-     * ここでは SceneEngine が動くことを確認するための最小実装にとどめる。
+     * UI（Phase 2: チャットUI / AUTO / SKIP / LOG / MENU 実装）
+     * ---------------------------------------------------------------
+     * 設計方針:
+     *   - SceneEngine と GameState の API には触らない（イベント購読のみ）。
+     *   - チャットメッセージは「タイピング演出」で1文字ずつ表示。
+     *   - 表示完了後はタップ or AUTO で次へ進行。
+     *   - 選択肢は SceneEngine が 'choices' を発火したら表示。
+     *   - AUTO は 'message' で表示完了後にタイマーで advance() を呼ぶ。
+     *   - 感情(effect: 1/2/3)で AUTO の間隔を変調する。
+     *
+     * イベントとUI状態の対応:
+     *   message  → タイピング表示（完了後、AUTO ならタイマー、手動なら待機）
+     *   choices  → AUTO を一時停止（強制停止）して選択肢ボタン表示
+     *   forced   → 「進む」ボタン or AUTO で自動進行
+     *   sceneChange → ヘッダー進行表示更新
+     *   end      → 終了演出 + MENU を促す
      * =============================================================== */
     const UI = (function () {
-      const $chat     = document.getElementById('chat-area');
-      const $choices  = document.getElementById('choices');
-      const $progress = document.getElementById('header-progress');
+      // ----- DOM 取得 -----
+      const $chat        = document.getElementById('chat-area');
+      const $choices     = document.getElementById('choices');
+      const $progress    = document.getElementById('header-progress');
+      const $autoToggle  = document.getElementById('auto-toggle');
+      const $autoState   = document.getElementById('auto-toggle-state');
+      const $ctrlAuto    = document.getElementById('ctrl-auto');
+      const $ctrlSkip    = document.getElementById('ctrl-skip');
+      const $ctrlLog     = document.getElementById('ctrl-log');
+      const $ctrlMenu    = document.getElementById('ctrl-menu');
+      const $modalLog    = document.getElementById('modal-log');
+      const $modalLogBody= document.getElementById('modal-log-body');
+      const $modalMenu   = document.getElementById('modal-menu');
+      const $menuSpeed   = document.getElementById('menu-speed');
 
+      /* ---------------------------------------------------------------
+       * 設定（UI ローカル）
+       *
+       * AUTO 速度は GameState とは独立した LocalStorage キーで保持する。
+       * 理由: ゲーム進行のセーブ（reset で消える）と分離し、
+       *       「最初から」を選んでも UI 設定は維持するため。
+       * --------------------------------------------------------------- */
+      const STORAGE_KEY_PREFS = 'whos-matching/ui-prefs-v1';
+
+      // 1メッセージあたりの目安時間（ms）。仕様書の値に準拠。
+      const AUTO_INTERVALS = Object.freeze({
+        slow:   4000,
+        normal: 2500,
+        fast:   1500,
+      });
+      // タイピング速度（ms/文字）。effect レベルでも変化させる。
+      const TYPING_SPEED_DEFAULT = 40;
+      // タイピング後にメッセージを「読んでもらう」ための最小残時間（ms）。
+      // タイピング所要時間が AUTO_INTERVAL を上回るときの保険。
+      const POST_TYPING_MIN_HOLD = 500;
+
+      const prefs = (function loadPrefs() {
+        // 失敗してもデフォルトで起動できるように try/catch
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY_PREFS);
+          if (raw) {
+            const obj = JSON.parse(raw);
+            return {
+              autoSpeed: AUTO_INTERVALS[obj.autoSpeed] ? obj.autoSpeed : 'normal',
+            };
+          }
+        } catch (e) { /* noop */ }
+        return { autoSpeed: 'normal' };
+      })();
+
+      function savePrefs() {
+        try {
+          localStorage.setItem(STORAGE_KEY_PREFS, JSON.stringify(prefs));
+        } catch (_) { /* noop */ }
+      }
+
+      /* ---------------------------------------------------------------
+       * 内部状態
+       *
+       * autoMode  : AUTO ON/OFF
+       * typing    : 現在タイピング中か（true ならタップで即時完了）
+       * waiting   : タイピング完了後、次の advance() を待っている状態
+       * pendingChoices: 'choices' 受信後、選択待ちか（AUTO は停止）
+       * pendingForced : 'forced' 受信後、進行待ちか
+       * lastEffect: 直近メッセージの effect レベル（1..3）。AUTO 間隔の変調に使う。
+       * --------------------------------------------------------------- */
+      const ui = {
+        autoMode: false,
+        typing: false,
+        waiting: false,
+        pendingChoices: false,
+        pendingForced: false,
+        lastEffect: 1,
+        // タイピング中の制御用
+        typingTimer: null,
+        typingFinish: null, // 即時完了用 callback
+        // AUTO 用タイマー
+        autoTimer: null,
+      };
+
+      /* ---------------------------------------------------------------
+       * ユーティリティ
+       * --------------------------------------------------------------- */
       function clearChoices() {
         $choices.innerHTML = '';
       }
 
-      function appendMessage(message) {
-        const row = document.createElement('div');
-        row.className = 'msg msg--' + message.speaker;
-        const bubble = document.createElement('div');
-        bubble.className = 'msg__bubble';
-        bubble.textContent = message.text;
-        row.appendChild(bubble);
-        $chat.appendChild(row);
-        // 最新メッセージへスクロール
+      function clearAutoTimer() {
+        if (ui.autoTimer) {
+          clearTimeout(ui.autoTimer);
+          ui.autoTimer = null;
+        }
+      }
+
+      function scrollChatToBottom() {
+        // 自動スクロール: 新メッセージは最下部へ。タイピング途中の追従にも使う。
         $chat.scrollTop = $chat.scrollHeight;
       }
 
+      // chapter / scene 番号をシーンIDから推定して表示する。
+      // demo-* もそれっぽく出す（Phase 3 で本番シーン投入時に上書きされる）。
+      function updateProgress(sceneId) {
+        if (!sceneId) {
+          $progress.textContent = 'Ch.- / Scene -';
+          return;
+        }
+        // 'scene-7' / 'scene7' / 'demo-1' などから数値を抽出
+        const m = String(sceneId).match(/(\d+)/);
+        const n = m ? parseInt(m[1], 10) : null;
+        let chapter = '-';
+        let scene = n != null ? n : '-';
+        if (n != null) {
+          // 仕様: Chapter1 = Scene1..10, Chapter2 = Scene11..18
+          chapter = n <= 10 ? 1 : 2;
+        }
+        $progress.textContent = 'Ch.' + chapter + ' / Scene ' + scene;
+      }
+
+      /* ---------------------------------------------------------------
+       * AUTO トグル / 速度
+       * --------------------------------------------------------------- */
+      function setAutoMode(on) {
+        ui.autoMode = !!on;
+        $autoToggle.classList.toggle('is-on', ui.autoMode);
+        $autoToggle.setAttribute('aria-pressed', ui.autoMode ? 'true' : 'false');
+        $autoState.textContent = ui.autoMode ? 'ON' : 'OFF';
+        $ctrlAuto.classList.toggle('is-active', ui.autoMode);
+        if (!ui.autoMode) {
+          // OFF にしたら予約済み AUTO は破棄
+          clearAutoTimer();
+        } else {
+          // ON にした瞬間、待機中なら自動で次へ進める
+          maybeScheduleAuto();
+        }
+      }
+
+      function setAutoSpeed(speed) {
+        if (!AUTO_INTERVALS[speed]) return;
+        prefs.autoSpeed = speed;
+        savePrefs();
+        renderSpeedSeg();
+      }
+
+      function renderSpeedSeg() {
+        $menuSpeed.querySelectorAll('.speed-seg__btn').forEach((b) => {
+          b.classList.toggle('is-active', b.dataset.speed === prefs.autoSpeed);
+        });
+      }
+
+      /* ---------------------------------------------------------------
+       * AUTO 間隔の計算（感情連動制御）
+       *
+       * effect レベルに応じて AUTO の進行間隔を変調する:
+       *   1: 基本速度（前半・恋愛）
+       *   2: ランダムに +200..500ms 追加（中盤・違和感）
+       *   3: ランダムに +1000ms or 2倍速（後半・恐怖）
+       * --------------------------------------------------------------- */
+      function computeAutoDelay(effect) {
+        const base = AUTO_INTERVALS[prefs.autoSpeed] || AUTO_INTERVALS.normal;
+        if (effect === 2) {
+          // 不規則化: +200..500ms
+          return base + Math.floor(200 + Math.random() * 300);
+        }
+        if (effect === 3) {
+          // 予測不能: 70% で +1000..2500ms 追加、30% で 半分（2倍速）
+          if (Math.random() < 0.7) {
+            return base + Math.floor(1000 + Math.random() * 1500);
+          }
+          return Math.max(400, Math.floor(base * 0.5));
+        }
+        return base;
+      }
+
+      // タイピング速度も effect で変える（後半ほど不安定）。
+      function computeTypingSpeed(message) {
+        if (typeof message.speed === 'number') return message.speed;
+        const eff = message.effect || 1;
+        if (eff === 3) return TYPING_SPEED_DEFAULT + 20; // 重め
+        if (eff === 2) return TYPING_SPEED_DEFAULT + 10;
+        return TYPING_SPEED_DEFAULT;
+      }
+
+      /* ---------------------------------------------------------------
+       * メッセージ描画（タイピング演出）
+       * --------------------------------------------------------------- */
+      function renderMessage(message, onDone) {
+        // 行コンテナ + バブル生成
+        const row = document.createElement('div');
+        row.className = 'msg msg--' + message.speaker;
+        const bubble = document.createElement('div');
+        bubble.className = 'msg__bubble is-typing';
+        row.appendChild(bubble);
+        $chat.appendChild(row);
+        scrollChatToBottom();
+
+        const text = String(message.text || '');
+        const speed = computeTypingSpeed(message);
+
+        let i = 0;
+        ui.typing = true;
+
+        function step() {
+          if (!ui.typing) return; // 即時完了などで中断された
+          if (i >= text.length) {
+            finish();
+            return;
+          }
+          // 1文字追加。textContent を都度書き換える方が DOM ノイズが少ない。
+          i += 1;
+          bubble.textContent = text.slice(0, i);
+          scrollChatToBottom();
+          ui.typingTimer = setTimeout(step, speed);
+        }
+
+        function finish() {
+          // タイピング即時完了: 残り全文を一気に表示してキャレットを消す
+          if (ui.typingTimer) { clearTimeout(ui.typingTimer); ui.typingTimer = null; }
+          bubble.textContent = text;
+          bubble.classList.remove('is-typing');
+          ui.typing = false;
+          ui.typingFinish = null;
+          scrollChatToBottom();
+          if (typeof onDone === 'function') onDone();
+        }
+
+        // 外部からタイピングを即時完了させるためのハンドル
+        ui.typingFinish = finish;
+
+        // 空文字メッセージは即終了
+        if (text.length === 0) {
+          finish();
+        } else {
+          ui.typingTimer = setTimeout(step, speed);
+        }
+      }
+
+      /* ---------------------------------------------------------------
+       * 選択肢描画
+       *
+       * 4択でも縦画面で読みやすいようボタンは縦並び（CSSで定義済み）。
+       * AUTO モード時もここで自動的に停止する（ボタン表示=待機状態）。
+       * --------------------------------------------------------------- */
       function renderChoices(choices) {
         clearChoices();
+        ui.pendingChoices = true;
+        ui.pendingForced = false;
+        // AUTO 進行を強制停止
+        clearAutoTimer();
+
+        const buttons = [];
         choices.forEach((choice, idx) => {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.className = 'choice-btn';
           btn.textContent = choice.label;
-          btn.addEventListener('click', () => {
-            // 選択を表示してから進行
-            SceneEngine.choose(idx);
+          btn.addEventListener('click', (ev) => {
+            ev.stopPropagation(); // チャットエリアの「タップで進行」と競合しないように
+            handleChoiceTap(idx, btn, buttons, choice);
           });
           $choices.appendChild(btn);
+          buttons.push(btn);
         });
       }
 
+      function handleChoiceTap(idx, selectedBtn, allButtons, choice) {
+        if (!ui.pendingChoices) return;
+        ui.pendingChoices = false;
+        // 強調 + 他をフェード（押した感を残してから次に進める）
+        allButtons.forEach((b) => {
+          b.disabled = true;
+          if (b === selectedBtn) b.classList.add('is-selected');
+          else b.classList.add('is-dimmed');
+        });
+        // 主人公の発話としてチャットに追加（"> ラベル"）してから進行
+        // → SceneEngine.choose() 内で GameState.appendLog も走るので、
+        //   ここでは「画面表示だけ」を担当する。
+        appendChoiceEcho(choice.label);
+        // 少し余韻を残してから choose（演出として 350ms ほど）
+        setTimeout(() => {
+          SceneEngine.choose(idx);
+        }, 350);
+      }
+
+      function appendChoiceEcho(label) {
+        // 選んだ選択肢を主人公の吹き出しとして即時表示（タイピングなし）。
+        // 次シーンが始まる前にプレイヤーに「自分の発言」として実感させるため。
+        const row = document.createElement('div');
+        row.className = 'msg msg--protagonist';
+        const bubble = document.createElement('div');
+        bubble.className = 'msg__bubble';
+        bubble.textContent = label;
+        row.appendChild(bubble);
+        $chat.appendChild(row);
+        scrollChatToBottom();
+      }
+
+      /* ---------------------------------------------------------------
+       * forced（選択肢なしで進行）
+       *
+       * 表示UIとしては「▶ 次へ」ボタンを選択肢エリアに出す。
+       * AUTO ON ならボタンを出しつつ、自動でタイマーで進行させる。
+       * --------------------------------------------------------------- */
       function renderForced(next) {
         clearChoices();
+        ui.pendingChoices = false;
+        ui.pendingForced = true;
+
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'choice-btn choice-btn--accent';
         btn.textContent = next ? '▶ 次へ' : '— 終わり —';
         btn.disabled = !next;
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          if (!ui.pendingForced) return;
+          ui.pendingForced = false;
           SceneEngine.proceedForced();
         });
         $choices.appendChild(btn);
+
+        // forced も AUTO の対象（読了後に自動で次シーンへ）
+        maybeScheduleAuto();
       }
 
-      function updateProgress(sceneId) {
-        // 簡易表示。Chapter 推定は Phase 2 以降の本番シーンで。
-        $progress.textContent = 'Scene: ' + (sceneId || '-');
+      /* ---------------------------------------------------------------
+       * AUTO スケジューリング
+       *
+       * waiting / pendingForced のときだけタイマーをセットする。
+       * メッセージ表示の effect を反映した間隔で advance を呼ぶ。
+       * --------------------------------------------------------------- */
+      function maybeScheduleAuto() {
+        clearAutoTimer();
+        if (!ui.autoMode) return;
+        if (ui.pendingChoices) return; // 選択肢では強制停止
+        if (ui.typing) return;
+
+        const delay = computeAutoDelay(ui.lastEffect);
+        // メッセージ読了の保険として最小ホールドを担保
+        const wait = Math.max(POST_TYPING_MIN_HOLD, delay);
+
+        ui.autoTimer = setTimeout(() => {
+          ui.autoTimer = null;
+          if (!ui.autoMode) return;
+          if (ui.pendingChoices) return;
+          if (ui.pendingForced) {
+            ui.pendingForced = false;
+            SceneEngine.proceedForced();
+          } else if (ui.waiting) {
+            ui.waiting = false;
+            SceneEngine.advance();
+          }
+        }, wait);
       }
 
-      function bind() {
-        // 1メッセージ表示ごとに「進む」ボタンを出す（Phase 1の最小実装）。
-        // タイプライタ表示や AUTO は後続フェーズで導入する。
-        SceneEngine.on('message', (e) => {
-          appendMessage(e.message);
-          // メッセージごとの中継ボタン。最後のメッセージなら末尾アクションが続く。
+      /* ---------------------------------------------------------------
+       * チャットエリアのタップ進行
+       *
+       * 仕様: 「タップで次へ進める」「タップで AUTO 即停止」。
+       * - タイピング中  → タイピング即完了
+       * - 待機中(waiting) → advance()
+       * - forced 待ち → proceedForced()
+       * - 選択肢中    → 何もしない（選択肢ボタンが優先）
+       * --------------------------------------------------------------- */
+      function handleChatTap() {
+        // タップは AUTO を即停止する（仕様）
+        if (ui.autoMode) {
+          setAutoMode(false);
+        }
+        if (ui.pendingChoices) return;
+
+        if (ui.typing) {
+          // タイピング途中なら即時完了
+          if (typeof ui.typingFinish === 'function') ui.typingFinish();
+          return;
+        }
+        if (ui.pendingForced) {
+          ui.pendingForced = false;
+          SceneEngine.proceedForced();
+          return;
+        }
+        if (ui.waiting) {
+          ui.waiting = false;
+          SceneEngine.advance();
+        }
+      }
+
+      /* ---------------------------------------------------------------
+       * SKIP: 次の入力ポイントへ即座に進む
+       *
+       * - タイピング中 → 即完了して advance() まで（forced/choice 直前まで）
+       * - 待機中 → そのまま advance()
+       * - forced → proceedForced()
+       * 選択肢では SKIP は無効（プレイヤーの判断が必要）。
+       * --------------------------------------------------------------- */
+      function handleSkip() {
+        if (ui.pendingChoices) return;
+        if (ui.typing && typeof ui.typingFinish === 'function') {
+          ui.typingFinish();
+          // タイピング完了直後に AUTO や手動と同様の待機状態にする。
+          // SKIP の意味は「次のメッセージへ即進む」なので、即 advance を呼ぶ。
+          ui.waiting = false;
+          // AUTO タイマーが動いていたら止めて、即進行
+          clearAutoTimer();
+          SceneEngine.advance();
+          return;
+        }
+        if (ui.pendingForced) {
+          ui.pendingForced = false;
+          clearAutoTimer();
+          SceneEngine.proceedForced();
+          return;
+        }
+        if (ui.waiting) {
+          ui.waiting = false;
+          clearAutoTimer();
+          SceneEngine.advance();
+        }
+      }
+
+      /* ---------------------------------------------------------------
+       * モーダル開閉
+       * --------------------------------------------------------------- */
+      function openModal($modal) {
+        $modal.classList.add('is-open');
+        $modal.setAttribute('aria-hidden', 'false');
+      }
+      function closeModal($modal) {
+        $modal.classList.remove('is-open');
+        $modal.setAttribute('aria-hidden', 'true');
+      }
+
+      /* ---------------------------------------------------------------
+       * LOG モーダル: GameState.log を時系列で表示
+       * --------------------------------------------------------------- */
+      function renderLogModal() {
+        const log = GameState.get('log') || [];
+        $modalLogBody.innerHTML = '';
+        if (log.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'log-empty';
+          empty.textContent = '（まだ会話はありません）';
+          $modalLogBody.appendChild(empty);
+          return;
+        }
+        const speakerLabel = {
+          partner:     'AKARI', // Phase 3 で character-spec の名前に置き換え可
+          protagonist: 'YOU',
+          narration:   '...',
+        };
+        log.forEach((entry) => {
+          const div = document.createElement('div');
+          div.className = 'log-entry log-entry--' + entry.speaker +
+            (entry.choice ? ' log-entry--choice' : '');
+          const meta = document.createElement('span');
+          meta.className = 'log-entry__meta';
+          meta.textContent = speakerLabel[entry.speaker] || entry.speaker;
+          const text = document.createElement('span');
+          text.className = 'log-entry__text';
+          text.textContent = entry.text;
+          div.appendChild(meta);
+          div.appendChild(text);
+          $modalLogBody.appendChild(div);
+        });
+        // 末尾までスクロール（最新が見える状態で開く）
+        $modalLogBody.scrollTop = $modalLogBody.scrollHeight;
+      }
+
+      /* ---------------------------------------------------------------
+       * MENU モーダル
+       *   - AUTO 速度切替
+       *   - 最初から（セーブ削除 + 再開）
+       *   - タイトルへ戻る（リロード）
+       * --------------------------------------------------------------- */
+      function bindMenu() {
+        // 速度セグメント
+        $menuSpeed.querySelectorAll('.speed-seg__btn').forEach((b) => {
+          b.addEventListener('click', () => setAutoSpeed(b.dataset.speed));
+        });
+        renderSpeedSeg();
+
+        // 「最初から」: GameState.reset() してデモシーン再起動
+        $modalMenu.querySelector('[data-menu="restart"]').addEventListener('click', () => {
+          if (!confirm('セーブを破棄して最初からやり直しますか？')) return;
+          GameState.reset();
+          // チャット領域・選択肢を初期化
+          $chat.innerHTML = '';
           clearChoices();
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'choice-btn choice-btn--accent';
-          btn.textContent = '▶';
-          btn.setAttribute('aria-label', '次のメッセージへ');
-          btn.addEventListener('click', () => SceneEngine.advance());
-          $choices.appendChild(btn);
+          ui.waiting = false;
+          ui.pendingChoices = false;
+          ui.pendingForced = false;
+          ui.typing = false;
+          if (ui.typingTimer) { clearTimeout(ui.typingTimer); ui.typingTimer = null; }
+          clearAutoTimer();
+          closeModal($modalMenu);
+          // デモから再開（Phase 3 で本番シーンに差し替え予定）
+          SceneEngine.start('demo-1');
+        });
+
+        // 「タイトルへ戻る」: ページリロード（簡素なタイトル復帰相当）
+        $modalMenu.querySelector('[data-menu="title"]').addEventListener('click', () => {
+          location.reload();
+        });
+      }
+
+      /* ---------------------------------------------------------------
+       * イベントバインド
+       * --------------------------------------------------------------- */
+      function bindGlobal() {
+        // ヘッダー AUTO トグル
+        $autoToggle.addEventListener('click', () => setAutoMode(!ui.autoMode));
+
+        // フッター: AUTO / SKIP / LOG / MENU
+        $ctrlAuto.addEventListener('click', () => setAutoMode(!ui.autoMode));
+        $ctrlSkip.addEventListener('click', handleSkip);
+        $ctrlLog.addEventListener('click', () => {
+          renderLogModal();
+          openModal($modalLog);
+        });
+        $ctrlMenu.addEventListener('click', () => openModal($modalMenu));
+
+        // モーダルの閉じるボタン
+        document.querySelectorAll('[data-modal-close]').forEach((b) => {
+          b.addEventListener('click', () => {
+            const id = b.getAttribute('data-modal-close');
+            const $m = document.getElementById(id);
+            if ($m) closeModal($m);
+          });
+        });
+        // モーダル背景タップで閉じる（パネル内タップは伝搬しない）
+        [$modalLog, $modalMenu].forEach(($m) => {
+          $m.addEventListener('click', (ev) => {
+            if (ev.target === $m) closeModal($m);
+          });
+          $m.querySelector('.modal__panel').addEventListener('click', (ev) => {
+            ev.stopPropagation();
+          });
+        });
+
+        // チャットエリアのタップで進行 / AUTO 停止
+        $chat.addEventListener('click', handleChatTap);
+      }
+
+      function bindEngine() {
+        SceneEngine.on('message', (e) => {
+          // 直近 effect を更新（AUTO 間隔の変調に使う）
+          ui.lastEffect = e.message.effect || 1;
+          ui.waiting = false;
+          ui.pendingForced = false;
+          ui.pendingChoices = false;
+          // タイピング中の途中で次が来た場合は前のを完了させてから進める
+          if (ui.typing && typeof ui.typingFinish === 'function') {
+            ui.typingFinish();
+          }
+          renderMessage(e.message, () => {
+            // タイピング完了後は「次のタップ待ち」状態に入る
+            ui.waiting = true;
+            // AUTO ON ならタイマーで自動進行
+            maybeScheduleAuto();
+          });
         });
 
         SceneEngine.on('choices', (e) => {
@@ -817,28 +1616,32 @@
         });
 
         SceneEngine.on('end', (e) => {
-          console.log('[SceneEngine] end:', e);
+          // 終了演出: ナレーションで終了表示し、選択肢領域はクリア。
+          // MENU から「最初から」できることをプレイヤーに気付かせる。
           clearChoices();
+          ui.waiting = false;
+          ui.pendingChoices = false;
+          ui.pendingForced = false;
+          clearAutoTimer();
           const note = document.createElement('div');
           note.className = 'msg msg--narration';
           const bubble = document.createElement('div');
           bubble.className = 'msg__bubble';
-          bubble.textContent = '（デモ終了）';
+          bubble.textContent = '——終了。MENU から「最初から」を選べます。';
           note.appendChild(bubble);
           $chat.appendChild(note);
-        });
-
-        // フッター: Phase 1 ではログ出力のみ（後続でAUTO等を実装）
-        document.querySelectorAll('.ctrl-btn').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            console.log('[ctrl]', btn.dataset.ctrl, 'state:', GameState.getAll());
-          });
+          scrollChatToBottom();
+          console.log('[SceneEngine] end:', e);
         });
       }
 
       function boot() {
-        bind();
-        // ダミーシーンをロードして開始（Phase 1 の動作確認）
+        bindGlobal();
+        bindMenu();
+        bindEngine();
+        // 初期 AUTO 状態を反映（OFF）
+        setAutoMode(false);
+        // ダミーシーンをロードして開始（Phase 3 で本番シーンに差し替え予定）
         SceneEngine.loadScenes(DEMO_SCENES);
         SceneEngine.start('demo-1');
       }
